@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
+import { invoke } from '@tauri-apps/api/core';
+import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSessionStore, type Session, type Folder } from '../../stores/sessionStore';
 import SessionDialog from './SessionDialog';
 import styles from './SessionSidebar.module.css';
@@ -62,6 +64,37 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
     },
     [sessions, onConnect]
   );
+
+  const handleExport = useCallback(async () => {
+    try {
+      const path = await save({
+        title: 'Export Sessions',
+        defaultPath: 'zenith-sessions.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (path) {
+        await invoke('export_sessions_file', { path });
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
+  }, []);
+
+  const handleImport = useCallback(async () => {
+    try {
+      const path = await openDialog({
+        title: 'Import Sessions',
+        multiple: false,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (path) {
+        await invoke('import_sessions_file', { path });
+        loadSessions();
+      }
+    } catch (err) {
+      console.error('Import failed:', err);
+    }
+  }, [loadSessions]);
 
   const rootSessions = sessions
     .filter((s) => !s.folderId)
@@ -139,6 +172,14 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
         </button>
         <button className={styles.actionBtn} onClick={handleNewFolder}>
           + New Folder
+        </button>
+      </div>
+      <div className={styles.bottomActions}>
+        <button className={styles.actionBtn} onClick={handleExport}>
+          Export
+        </button>
+        <button className={styles.actionBtn} onClick={handleImport}>
+          Import
         </button>
       </div>
 

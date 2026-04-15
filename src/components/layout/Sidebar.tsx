@@ -1,6 +1,7 @@
 import { useLayoutStore } from '../../stores/layoutStore';
 import SessionSidebar from '../sessions/SessionSidebar';
 import FileBrowser from '../files/FileBrowser';
+import SettingsPanel from '../settings/SettingsPanel';
 import type { Session } from '../../stores/sessionStore';
 import styles from './Sidebar.module.css';
 
@@ -33,10 +34,11 @@ export default function Sidebar({ onConnect, connectedSessionIds, activeSessionI
           />
         ) : sidebarPanel === 'files' ? (
           <FileBrowser sessionId={activeSessionId ?? null} />
+        ) : sidebarPanel === 'settings' ? (
+          <SettingsPanel />
         ) : (
           <div className={styles.placeholder}>
             {sidebarPanel === 'monitoring' && 'No active monitors'}
-            {sidebarPanel === 'settings' && 'Settings panel'}
           </div>
         )}
       </div>

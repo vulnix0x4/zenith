@@ -7650,6 +7650,7 @@ dependencies = [
  "chrono",
  "dirs",
  "env_logger",
+ "keyring",
  "log",
  "russh",
  "russh-keys",

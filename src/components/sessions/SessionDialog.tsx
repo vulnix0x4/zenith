@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { v4 as uuid } from 'uuid';
+import { invoke } from '@tauri-apps/api/core';
 import type { Session, AuthMethod } from '../../stores/sessionStore';
 import styles from './SessionDialog.module.css';
 
@@ -17,6 +18,8 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
   const [username, setUsername] = useState('');
   const [authMethod, setAuthMethod] = useState<AuthMethod>('password');
   const [privateKeyPath, setPrivateKeyPath] = useState('');
+  const [savePassword, setSavePassword] = useState(false);
+  const [passwordField, setPasswordField] = useState('');
 
   useEffect(() => {
     if (session) {
@@ -34,17 +37,20 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
       setAuthMethod('password');
       setPrivateKeyPath('');
     }
+    setSavePassword(false);
+    setPasswordField('');
   }, [session, open]);
 
   if (!open) return null;
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!hostname || !username) return;
 
     const now = new Date().toISOString();
+    const sessionId = session?.id ?? uuid();
     const saved: Session = {
-      id: session?.id ?? uuid(),
+      id: sessionId,
       name: name || `${username}@${hostname}`,
       hostname,
       port: parseInt(port, 10) || 22,
@@ -60,6 +66,16 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
     };
 
     onSave(saved);
+
+    // Save credential to keychain if checkbox is checked and password provided
+    if (savePassword && passwordField && authMethod === 'password') {
+      try {
+        await invoke('save_credential', { sessionId, password: passwordField });
+      } catch (err) {
+        console.error('Failed to save credential:', err);
+      }
+    }
+
     onClose();
   };
 
@@ -158,6 +174,29 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
                 placeholder="~/.ssh/id_rsa"
               />
             </label>
+          )}
+          {authMethod === 'password' && (
+            <>
+              <label className={styles.label}>
+                Password
+                <input
+                  className={styles.input}
+                  type="password"
+                  value={passwordField}
+                  onChange={(e) => setPasswordField(e.target.value)}
+                  placeholder="Enter password to save"
+                />
+              </label>
+              <label className={styles.radioLabel}>
+                <input
+                  type="checkbox"
+                  checked={savePassword}
+                  onChange={(e) => setSavePassword(e.target.checked)}
+                  className={styles.radio}
+                />
+                Save password in keychain
+              </label>
+            </>
           )}
           <div className={styles.actions}>
             <button type="button" className={styles.cancelBtn} onClick={onClose}>

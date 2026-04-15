@@ -1,0 +1,138 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 2px;
+  min-height: 28px;
+  gap: 8px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.inputNumber {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  width: 72px;
+  text-align: right;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.inputNumber:focus {
+  border-color: var(--cyan-dim);
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+
+.inputNumber::-webkit-outer-spin-button,
+.inputNumber::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.inputNumber {
+  -moz-appearance: textfield;
+}
+
+.inputText {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  width: 120px;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.inputText:focus {
+  border-color: var(--cyan-dim);
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+
+.select {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.select:focus {
+  border-color: var(--cyan-dim);
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+
+.toggle {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.toggleActive {
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.toggleActive::after {
+  transform: translateX(16px);
+  background: var(--bg-deep);
+}

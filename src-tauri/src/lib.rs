@@ -1,11 +1,15 @@
+mod credentials;
 mod monitoring;
 mod sessions;
+mod settings;
 mod sftp;
 mod ssh;
 
+use credentials::commands::*;
 use monitoring::commands::*;
 use monitoring::manager::MonitorManager;
 use sessions::commands::*;
+use settings::commands::*;
 use sftp::commands::*;
 use sftp::manager::SftpManager;
 use ssh::commands::*;
@@ -41,6 +45,11 @@ pub fn run() {
             sftp_mkdir,
             start_monitoring,
             stop_monitoring,
+            get_settings,
+            save_settings,
+            save_credential,
+            get_credential,
+            delete_credential,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
