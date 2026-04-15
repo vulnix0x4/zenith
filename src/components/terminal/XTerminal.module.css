@@ -1,0 +1,27 @@
+.terminalContainer {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.terminalContainer :global(.xterm) {
+  padding: 8px;
+}
+
+.terminalContainer :global(.xterm-viewport) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyan-dim) transparent;
+}
+
+.terminalContainer :global(.xterm-viewport::-webkit-scrollbar) {
+  width: 6px;
+}
+
+.terminalContainer :global(.xterm-viewport::-webkit-scrollbar-thumb) {
+  background: var(--cyan-dim);
+  border-radius: 3px;
+}
+
+.terminalContainer :global(.xterm-viewport::-webkit-scrollbar-track) {
+  background: transparent;
+}

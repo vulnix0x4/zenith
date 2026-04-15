@@ -1,22 +1,21 @@
+import { useTabStore } from '../../stores/tabStore';
 import styles from './TabBar.module.css';
 
-interface Tab {
-  id: string;
-  title: string;
-  connected: boolean;
-  active: boolean;
+interface TabBarProps {
+  onNewTab: () => void;
+  onCloseTab: (id: string) => void;
 }
 
-// Placeholder tabs - will be driven by session store later
-const tabs: Tab[] = [];
+export default function TabBar({ onNewTab, onCloseTab }: TabBarProps) {
+  const { tabs, activeTabId, setActiveTab } = useTabStore();
 
-export default function TabBar() {
   return (
     <div className={styles.tabBar}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          className={`${styles.tab} ${tab.active ? styles.tabActive : ''}`}
+          className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab(tab.id)}
         >
           <span
             className={`${styles.statusDot} ${
@@ -24,12 +23,24 @@ export default function TabBar() {
             }`}
           />
           <span>{tab.title}</span>
-          <span className={styles.tabClose}>&times;</span>
+          <span
+            className={styles.tabClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCloseTab(tab.id);
+            }}
+          >
+            &times;
+          </span>
         </button>
       ))}
       <div className={styles.actions}>
-        <button className={styles.actionButton} title="New Tab">+</button>
-        <button className={styles.actionButton} title="Split View">{'\u2AFC'}</button>
+        <button className={styles.actionButton} title="New Tab" onClick={onNewTab}>
+          +
+        </button>
+        <button className={styles.actionButton} title="Split View">
+          {'\u2AFC'}
+        </button>
       </div>
     </div>
   );

@@ -1,0 +1,27 @@
+import type { ITheme } from '@xterm/xterm';
+
+export const cyberpunkTheme: ITheme = {
+  foreground: '#e0e0e0',
+  background: '#0a0a0f',
+  cursor: '#00ffc8',
+  cursorAccent: '#0a0a0f',
+  selectionBackground: '#00ffc844',
+  selectionForeground: '#ffffff',
+  selectionInactiveBackground: '#00ffc822',
+  black: '#0a0a0f',
+  red: '#ff6b9d',
+  green: '#00ffc8',
+  yellow: '#febc2e',
+  blue: '#7B61FF',
+  magenta: '#c084fc',
+  cyan: '#00b4d8',
+  white: '#e0e0e0',
+  brightBlack: '#555555',
+  brightRed: '#ff8fba',
+  brightGreen: '#33ffd6',
+  brightYellow: '#ffd060',
+  brightBlue: '#9b85ff',
+  brightMagenta: '#d4a0ff',
+  brightCyan: '#29b8db',
+  brightWhite: '#ffffff',
+};
