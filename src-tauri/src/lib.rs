@@ -1,5 +1,7 @@
+mod sessions;
 mod ssh;
 
+use sessions::commands::*;
 use ssh::commands::*;
 use ssh::manager::SshManager;
 
@@ -13,6 +15,14 @@ pub fn run() {
             ssh_write,
             ssh_resize,
             ssh_disconnect,
+            get_sessions,
+            save_session,
+            delete_session,
+            save_folder,
+            delete_folder,
+            move_session_to_folder,
+            export_sessions_file,
+            import_sessions_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,4 +1,6 @@
 import { useLayoutStore } from '../../stores/layoutStore';
+import SessionSidebar from '../sessions/SessionSidebar';
+import type { Session } from '../../stores/sessionStore';
 import styles from './Sidebar.module.css';
 
 const panelLabels: Record<string, string> = {
@@ -8,7 +10,12 @@ const panelLabels: Record<string, string> = {
   settings: 'Settings',
 };
 
-export default function Sidebar() {
+interface SidebarProps {
+  onConnect?: (session: Session) => void;
+  connectedSessionIds?: Set<string>;
+}
+
+export default function Sidebar({ onConnect, connectedSessionIds }: SidebarProps) {
   const { sidebarOpen, sidebarPanel } = useLayoutStore();
 
   return (
@@ -17,12 +24,19 @@ export default function Sidebar() {
         <span className={styles.headerLabel}>{panelLabels[sidebarPanel]}</span>
       </div>
       <div className={styles.content}>
-        <div className={styles.placeholder}>
-          {sidebarPanel === 'sessions' && 'No saved sessions'}
-          {sidebarPanel === 'files' && 'No files open'}
-          {sidebarPanel === 'monitoring' && 'No active monitors'}
-          {sidebarPanel === 'settings' && 'Settings panel'}
-        </div>
+        {sidebarPanel === 'sessions' && onConnect && connectedSessionIds ? (
+          <SessionSidebar
+            onConnect={onConnect}
+            connectedSessionIds={connectedSessionIds}
+          />
+        ) : (
+          <div className={styles.placeholder}>
+            {sidebarPanel === 'sessions' && 'No saved sessions'}
+            {sidebarPanel === 'files' && 'No files open'}
+            {sidebarPanel === 'monitoring' && 'No active monitors'}
+            {sidebarPanel === 'settings' && 'Settings panel'}
+          </div>
+        )}
       </div>
     </div>
   );
