@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use crate::ssh::types::{AuthMethod, SshConnectRequest, SshEvent};
 
 /// Client handler for russh. Accepts all host keys for now.
-struct ClientHandler;
+pub(crate) struct ClientHandler;
 
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
@@ -24,15 +24,27 @@ impl client::Handler for ClientHandler {
     }
 }
 
+/// Type alias so other modules can hold a handle without knowing ClientHandler.
+pub type SshHandle = client::Handle<ClientHandler>;
+
+/// Thread-safe, shared SSH handle.
+/// After authentication completes, all Handle methods used (channel_open_session,
+/// disconnect) take &self, so an Arc suffices -- no Mutex needed.
+pub type SharedSshHandle = Arc<SshHandle>;
+
 /// Represents an active SSH connection with an open shell channel.
+/// The SSH handle is stored externally in a `SharedSshHandle` so that
+/// other subsystems (SFTP) can open additional channels.
 pub struct SshConnection {
-    handle: client::Handle<ClientHandler>,
     channel: russh::Channel<client::Msg>,
+    handle: SharedSshHandle,
 }
 
 impl SshConnection {
     /// Connect to a remote host, authenticate, open a PTY, and start a shell.
-    pub async fn connect(request: &SshConnectRequest) -> Result<Self> {
+    /// Returns the connection and a shared handle that can be used to open
+    /// additional channels (e.g. for SFTP).
+    pub async fn connect(request: &SshConnectRequest) -> Result<(Self, SharedSshHandle)> {
         let config = client::Config {
             inactivity_timeout: Some(Duration::from_secs(600)),
             keepalive_interval: Some(Duration::from_secs(30)),
@@ -44,7 +56,7 @@ impl SshConnection {
             .await
             .context("Failed to connect to SSH server")?;
 
-        // Authenticate
+        // Authenticate (requires &mut handle)
         let auth_result = match &request.auth_method {
             AuthMethod::Password { password } => {
                 handle
@@ -81,7 +93,7 @@ impl SshConnection {
             anyhow::bail!("Authentication rejected by server");
         }
 
-        // Open a session channel
+        // Open a session channel for the interactive shell
         let channel = handle
             .channel_open_session()
             .await
@@ -99,7 +111,15 @@ impl SshConnection {
             .await
             .context("Failed to request shell")?;
 
-        Ok(Self { handle, channel })
+        // Wrap the handle in Arc now that auth is done.
+        // All post-auth methods (channel_open_session, disconnect) take &self.
+        let shared_handle = Arc::new(handle);
+        let conn = Self {
+            channel,
+            handle: Arc::clone(&shared_handle),
+        };
+
+        Ok((conn, shared_handle))
     }
 
     /// Run the main event loop. Multiplexes:

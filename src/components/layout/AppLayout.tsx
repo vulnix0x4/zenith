@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, type MutableRefObject } from 'react';
 import { v4 as uuid } from 'uuid';
+import { invoke } from '@tauri-apps/api/core';
 import type { Terminal } from '@xterm/xterm';
 import TitleBar from './TitleBar';
 import ActivityBar from './ActivityBar';
@@ -29,6 +30,23 @@ export default function AppLayout() {
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // Derive active tab's session ID for the file browser
+  const activeSessionId = useMemo(() => {
+    const activeTab = tabs.find((t) => t.id === activeTabId);
+    return activeTab?.connected ? activeTab.sessionId : null;
+  }, [tabs, activeTabId]);
+
+  // Auto-open SFTP when a connection becomes established
+  useEffect(() => {
+    for (const tab of tabs) {
+      if (tab.connected) {
+        invoke('sftp_open', { sessionId: tab.sessionId }).catch(() => {
+          // Ignore -- may already be open or SFTP not supported
+        });
+      }
+    }
+  }, [tabs]);
 
   // Derive connected session IDs from tabs
   const connectedSessionIds = useMemo(() => {
@@ -156,6 +174,7 @@ export default function AppLayout() {
         <Sidebar
           onConnect={handleSessionConnect}
           connectedSessionIds={connectedSessionIds}
+          activeSessionId={activeSessionId}
         />
         <div className={styles.mainArea}>
           <TabBar onNewTab={handleNewTab} onCloseTab={handleTabClose} />

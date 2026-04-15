@@ -1,5 +1,6 @@
 import { useLayoutStore } from '../../stores/layoutStore';
 import SessionSidebar from '../sessions/SessionSidebar';
+import FileBrowser from '../files/FileBrowser';
 import type { Session } from '../../stores/sessionStore';
 import styles from './Sidebar.module.css';
 
@@ -13,9 +14,10 @@ const panelLabels: Record<string, string> = {
 interface SidebarProps {
   onConnect?: (session: Session) => void;
   connectedSessionIds?: Set<string>;
+  activeSessionId?: string | null;
 }
 
-export default function Sidebar({ onConnect, connectedSessionIds }: SidebarProps) {
+export default function Sidebar({ onConnect, connectedSessionIds, activeSessionId }: SidebarProps) {
   const { sidebarOpen, sidebarPanel } = useLayoutStore();
 
   return (
@@ -29,10 +31,10 @@ export default function Sidebar({ onConnect, connectedSessionIds }: SidebarProps
             onConnect={onConnect}
             connectedSessionIds={connectedSessionIds}
           />
+        ) : sidebarPanel === 'files' ? (
+          <FileBrowser sessionId={activeSessionId ?? null} />
         ) : (
           <div className={styles.placeholder}>
-            {sidebarPanel === 'sessions' && 'No saved sessions'}
-            {sidebarPanel === 'files' && 'No files open'}
             {sidebarPanel === 'monitoring' && 'No active monitors'}
             {sidebarPanel === 'settings' && 'Settings panel'}
           </div>

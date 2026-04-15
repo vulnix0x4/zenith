@@ -4,14 +4,16 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::ssh::connection::SshConnection;
+use crate::ssh::connection::{SharedSshHandle, SshConnection};
 use crate::ssh::types::{SshConnectRequest, SshEvent};
 
 /// Entry for an active SSH session, holding the channel senders
-/// that drive the connection's event loop.
+/// that drive the connection's event loop and a shared SSH handle
+/// for opening additional channels (SFTP, etc.).
 struct ConnectionEntry {
     write_tx: mpsc::UnboundedSender<Vec<u8>>,
     resize_tx: mpsc::UnboundedSender<(u32, u32)>,
+    handle: SharedSshHandle,
 }
 
 /// Manages all active SSH sessions.
@@ -38,8 +40,9 @@ impl SshManager {
     ) -> Result<()> {
         let session_id = request.session_id.clone();
 
-        // Establish the SSH connection
-        let conn = SshConnection::connect(&request)
+        // Establish the SSH connection.
+        // connect() returns both the connection and a shared handle.
+        let (conn, shared_handle) = SshConnection::connect(&request)
             .await
             .context("SSH connection failed")?;
 
@@ -47,12 +50,16 @@ impl SshManager {
         let (write_tx, write_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (resize_tx, resize_rx) = mpsc::unbounded_channel::<(u32, u32)>();
 
-        // Store the connection entry
+        // Store the connection entry with the shared handle
         {
             let mut conns = self.connections.lock().await;
             conns.insert(
                 session_id.clone(),
-                ConnectionEntry { write_tx, resize_tx },
+                ConnectionEntry {
+                    write_tx,
+                    resize_tx,
+                    handle: shared_handle,
+                },
             );
         }
 
@@ -98,6 +105,16 @@ impl SshManager {
             .map_err(|_| anyhow::anyhow!("Session resize channel closed"))?;
 
         Ok(())
+    }
+
+    /// Get a reference to the shared SSH handle for an active session.
+    /// Used by the SFTP subsystem to open additional channels on the same connection.
+    pub async fn get_handle(&self, session_id: &str) -> Result<SharedSshHandle> {
+        let conns = self.connections.lock().await;
+        let entry = conns
+            .get(session_id)
+            .context("Session not found")?;
+        Ok(Arc::clone(&entry.handle))
     }
 
     /// Disconnect an active session by removing it from the map.
