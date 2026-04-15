@@ -1,12 +1,14 @@
+import type { MonitorData } from '../../hooks/useMonitoring';
 import styles from './MonitorBar.module.css';
 
 interface MetricBarProps {
   label: string;
   percentage: number;
+  detail?: string;
   color: string;
 }
 
-function MetricBar({ label, percentage, color }: MetricBarProps) {
+function MetricBar({ label, percentage, detail, color }: MetricBarProps) {
   const total = 10;
   const filled = Math.round((percentage / 100) * total);
 
@@ -24,25 +26,19 @@ function MetricBar({ label, percentage, color }: MetricBarProps) {
           </span>
         ))}
       </span>
-      <span className={styles.metricValue}>{percentage}%</span>
+      <span className={styles.metricValue}>
+        {detail ?? `${Math.round(percentage)}%`}
+      </span>
     </div>
   );
 }
 
-interface MonitorData {
-  cpu: number;
-  ram: number;
-  network: number;
-  disk: number;
-  hostname: string;
-  uptime: string;
+interface MonitorBarProps {
+  data: MonitorData | null;
 }
 
-// Will be driven by real data later
-const monitorData: MonitorData | null = null;
-
-export default function MonitorBar() {
-  if (!monitorData) {
+export default function MonitorBar({ data }: MonitorBarProps) {
+  if (!data) {
     return (
       <div className={styles.monitorBar}>
         <span className={styles.noConnection}>No active connection</span>
@@ -52,14 +48,33 @@ export default function MonitorBar() {
 
   return (
     <div className={styles.monitorBar}>
-      <MetricBar label="CPU" percentage={monitorData.cpu} color="var(--cyan)" />
-      <MetricBar label="RAM" percentage={monitorData.ram} color="var(--purple)" />
-      <MetricBar label="NET" percentage={monitorData.network} color="var(--pink)" />
-      <MetricBar label="DSK" percentage={monitorData.disk} color="var(--blue)" />
+      <MetricBar
+        label="CPU"
+        percentage={data.cpu}
+        color="var(--cyan)"
+      />
+      <MetricBar
+        label="RAM"
+        percentage={data.ram}
+        detail={`${data.ramUsed}/${data.ramTotal}`}
+        color="var(--purple)"
+      />
+      <MetricBar
+        label="NET"
+        percentage={0}
+        detail={`${data.networkDown} \u2193 ${data.networkUp} \u2191`}
+        color="var(--pink)"
+      />
+      <MetricBar
+        label="DSK"
+        percentage={data.disk}
+        detail={`${data.diskUsed}/${data.diskTotal}`}
+        color="var(--blue)"
+      />
       <div className={styles.spacer} />
       <div className={styles.info}>
-        <span>{monitorData.hostname}</span>
-        <span>{monitorData.uptime}</span>
+        <span>{data.hostname}</span>
+        <span>{data.uptime}</span>
       </div>
     </div>
   );

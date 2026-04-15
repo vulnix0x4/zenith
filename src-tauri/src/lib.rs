@@ -1,7 +1,10 @@
+mod monitoring;
 mod sessions;
 mod sftp;
 mod ssh;
 
+use monitoring::commands::*;
+use monitoring::manager::MonitorManager;
 use sessions::commands::*;
 use sftp::commands::*;
 use sftp::manager::SftpManager;
@@ -15,6 +18,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(SshManager::new())
         .manage(SftpManager::new())
+        .manage(MonitorManager::new())
         .invoke_handler(tauri::generate_handler![
             ssh_connect,
             ssh_write,
@@ -35,6 +39,8 @@ pub fn run() {
             sftp_delete,
             sftp_rename,
             sftp_mkdir,
+            start_monitoring,
+            stop_monitoring,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

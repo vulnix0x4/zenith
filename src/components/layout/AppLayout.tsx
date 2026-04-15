@@ -14,6 +14,7 @@ import PasswordPrompt from '../dialogs/PasswordPrompt';
 import { useTabStore } from '../../stores/tabStore';
 import { useSessionStore, type Session } from '../../stores/sessionStore';
 import { useSshConnection } from '../../hooks/useSshConnection';
+import { useMonitoring } from '../../hooks/useMonitoring';
 import styles from './AppLayout.module.css';
 
 export default function AppLayout() {
@@ -36,6 +37,9 @@ export default function AppLayout() {
     const activeTab = tabs.find((t) => t.id === activeTabId);
     return activeTab?.connected ? activeTab.sessionId : null;
   }, [tabs, activeTabId]);
+
+  // Live system monitoring for the active SSH session
+  const monitorData = useMonitoring(activeSessionId);
 
   // Auto-open SFTP when a connection becomes established
   useEffect(() => {
@@ -213,7 +217,7 @@ export default function AppLayout() {
               </div>
             ))}
           </div>
-          <MonitorBar />
+          <MonitorBar data={monitorData} />
         </div>
       </div>
       <QuickConnect
