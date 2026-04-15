@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { invoke, Channel } from '@tauri-apps/api/core';
+import { v4 as uuid } from 'uuid';
 import type { Terminal } from '@xterm/xterm';
 import { useTabStore } from '../stores/tabStore';
 
@@ -19,6 +20,8 @@ interface SshEvent {
 export function useSshConnection() {
   const terminalsRef = useRef<Map<string, Terminal>>(new Map());
   const setConnected = useTabStore((s) => s.setConnected);
+  const setActivity = useTabStore((s) => s.setActivity);
+  const storeConnectionParams = useTabStore((s) => s.storeConnectionParams);
 
   const registerTerminal = useCallback((tabId: string, terminal: Terminal) => {
     terminalsRef.current.set(tabId, terminal);
@@ -32,6 +35,14 @@ export function useSshConnection() {
     async (tabId: string, params: SshConnectParams) => {
       const terminal = terminalsRef.current.get(tabId);
 
+      // Store connection params for reconnection
+      storeConnectionParams(tabId, {
+        hostname: params.hostname,
+        port: params.port,
+        username: params.username,
+        password: params.password,
+      });
+
       const onEvent = new Channel<SshEvent>();
       onEvent.onmessage = (message: SshEvent) => {
         switch (message.event) {
@@ -42,6 +53,13 @@ export function useSshConnection() {
             if (terminal && message.data?.bytes) {
               terminal.write(new Uint8Array(message.data.bytes));
             }
+            // Notify activity on background tabs
+            {
+              const activeTabId = useTabStore.getState().activeTabId;
+              if (tabId !== activeTabId) {
+                setActivity(tabId, true);
+              }
+            }
             break;
           case 'error':
             if (terminal && message.data?.message) {
@@ -51,7 +69,9 @@ export function useSshConnection() {
           case 'disconnected':
             setConnected(tabId, false);
             if (terminal) {
-              terminal.write('\r\n\x1b[33mDisconnected.\x1b[0m\r\n');
+              terminal.write(
+                '\r\n\x1b[33m\u26A1 Connection lost.\x1b[0m\r\n'
+              );
             }
             break;
         }
@@ -77,7 +97,35 @@ export function useSshConnection() {
         setConnected(tabId, false);
       }
     },
-    [setConnected]
+    [setConnected, setActivity, storeConnectionParams]
+  );
+
+  const reconnect = useCallback(
+    async (tabId: string) => {
+      const tab = useTabStore.getState().tabs.find((t) => t.id === tabId);
+      if (!tab || !tab.connectionParams) return;
+
+      const terminal = terminalsRef.current.get(tabId);
+      if (terminal) {
+        terminal.write('\r\n\x1b[36mReconnecting...\x1b[0m\r\n');
+      }
+
+      // Generate a new sessionId for the reconnection
+      const newSessionId = uuid();
+
+      // Update the tab's sessionId in the store
+      useTabStore.setState((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === tabId ? { ...t, sessionId: newSessionId, disconnectedAt: null } : t
+        ),
+      }));
+
+      await connect(tabId, {
+        sessionId: newSessionId,
+        ...tab.connectionParams,
+      });
+    },
+    [connect]
   );
 
   const write = useCallback(async (sessionId: string, data: string) => {
@@ -110,6 +158,7 @@ export function useSshConnection() {
 
   return {
     connect,
+    reconnect,
     write,
     resize,
     disconnect,

@@ -49,3 +49,57 @@
   color: var(--text-dim);
   font-size: 12px;
 }
+
+/* Terminal wrapper for overlay positioning */
+.terminalWrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Reconnection overlay banner */
+.reconnectOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 95, 87, 0.15) 0%,
+    rgba(255, 95, 87, 0.05) 100%
+  );
+  border-bottom: 1px solid rgba(255, 95, 87, 0.3);
+  backdrop-filter: blur(8px);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.reconnectOverlay span {
+  color: var(--status-error);
+  font-weight: 500;
+}
+
+.reconnectBtn {
+  padding: 3px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--bg-deep);
+  background: var(--cyan);
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+  letter-spacing: 0.3px;
+}
+
+.reconnectBtn:hover {
+  opacity: 0.85;
+}

@@ -1,4 +1,5 @@
 import { useTabStore } from '../../stores/tabStore';
+import { useSplitStore } from '../../stores/splitStore';
 import styles from './TabBar.module.css';
 
 interface TabBarProps {
@@ -8,13 +9,22 @@ interface TabBarProps {
 
 export default function TabBar({ onNewTab, onCloseTab }: TabBarProps) {
   const { tabs, activeTabId, setActiveTab } = useTabStore();
+  const cycleLayout = useSplitStore((s) => s.cycleLayout);
+
+  const handleSplitClick = () => {
+    if (activeTabId) {
+      cycleLayout(activeTabId);
+    }
+  };
 
   return (
     <div className={styles.tabBar}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ''}`}
+          className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ''} ${
+            tab.hasActivity && tab.id !== activeTabId ? styles.hasActivity : ''
+          }`}
           onClick={() => setActiveTab(tab.id)}
         >
           <span
@@ -38,7 +48,11 @@ export default function TabBar({ onNewTab, onCloseTab }: TabBarProps) {
         <button className={styles.actionButton} title="New Tab" onClick={onNewTab}>
           +
         </button>
-        <button className={styles.actionButton} title="Split View">
+        <button
+          className={styles.actionButton}
+          title="Split View"
+          onClick={handleSplitClick}
+        >
           {'\u2AFC'}
         </button>
       </div>

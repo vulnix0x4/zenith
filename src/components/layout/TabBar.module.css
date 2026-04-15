@@ -94,3 +94,18 @@
   background: var(--bg-elevated);
   color: var(--text-primary);
 }
+
+/* Tab activity notification pulse */
+@keyframes tabPulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 8px var(--cyan-glow); }
+}
+
+.hasActivity {
+  animation: tabPulse 2s infinite;
+}
+
+.hasActivity .statusDot {
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+}

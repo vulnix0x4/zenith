@@ -7,7 +7,7 @@ import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import TabBar from './TabBar';
 import MonitorBar from './MonitorBar';
-import XTerminal from '../terminal/XTerminal';
+import SplitTerminal from '../terminal/SplitTerminal';
 import QuickConnect from '../dialogs/QuickConnect';
 import CommandPalette from '../command-palette/CommandPalette';
 import PasswordPrompt from '../dialogs/PasswordPrompt';
@@ -20,7 +20,7 @@ import styles from './AppLayout.module.css';
 export default function AppLayout() {
   const { tabs, activeTabId, addTab, removeTab } = useTabStore();
   const { sessions, loadSessions } = useSessionStore();
-  const { connect, write, resize, disconnect, registerTerminal, unregisterTerminal } =
+  const { connect, reconnect, write, resize, disconnect, registerTerminal, unregisterTerminal } =
     useSshConnection();
 
   const [showQuickConnect, setShowQuickConnect] = useState(false);
@@ -97,10 +97,33 @@ export default function AppLayout() {
     [addTab, connect]
   );
 
-  // Connect from a saved session -- prompt for password if auth method is password
+  // Connect from a saved session -- try keychain credentials first, then prompt
   const handleSessionConnect = useCallback(
-    (session: Session) => {
+    async (session: Session) => {
       if (session.authMethod === 'password') {
+        // Try to get saved credential from keychain
+        try {
+          const savedPassword = await invoke<string | null>('get_credential', {
+            sessionId: session.id,
+          });
+          if (savedPassword) {
+            const sessionId = uuid();
+            const title = `${session.username}@${session.hostname}`;
+            const tabId = addTab(sessionId, title, session.hostname);
+            setTimeout(() => {
+              connect(tabId, {
+                sessionId,
+                hostname: session.hostname,
+                port: session.port,
+                username: session.username,
+                password: savedPassword,
+              });
+            }, 100);
+            return;
+          }
+        } catch {
+          // Keychain lookup failed, fall through to password prompt
+        }
         setPasswordSession(session);
       } else {
         // Private key auth -- connect with empty password
@@ -200,20 +223,34 @@ export default function AppLayout() {
                   height: '100%',
                 }}
               >
-                <XTerminal
-                  onData={(data) => write(tab.sessionId, data)}
-                  onResize={(cols, rows) => resize(tab.sessionId, cols, rows)}
-                  terminalRef={
-                    {
-                      get current() {
-                        return null;
-                      },
-                      set current(term: Terminal | null) {
-                        if (term) registerTerminal(tab.id, term);
-                      },
-                    } as MutableRefObject<Terminal | null>
-                  }
-                />
+                <div className={styles.terminalWrapper}>
+                  {!tab.connected && tab.disconnectedAt !== null && (
+                    <div className={styles.reconnectOverlay}>
+                      <span>{'\u26A1'} Connection lost</span>
+                      <button
+                        className={styles.reconnectBtn}
+                        onClick={() => reconnect(tab.id)}
+                      >
+                        Reconnect
+                      </button>
+                    </div>
+                  )}
+                  <SplitTerminal
+                    tabId={tab.id}
+                    onData={(data) => write(tab.sessionId, data)}
+                    onResize={(cols, rows) => resize(tab.sessionId, cols, rows)}
+                    terminalRef={
+                      {
+                        get current() {
+                          return null;
+                        },
+                        set current(term: Terminal | null) {
+                          if (term) registerTerminal(tab.id, term);
+                        },
+                      } as MutableRefObject<Terminal | null>
+                    }
+                  />
+                </div>
               </div>
             ))}
           </div>
