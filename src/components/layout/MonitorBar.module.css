@@ -1,0 +1,66 @@
+.monitorBar {
+  height: var(--monitor-bar-height);
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-top: 1px solid var(--border-subtle);
+  gap: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.metricLabel {
+  color: var(--text-dim);
+  font-size: 10px;
+  min-width: 24px;
+}
+
+.blocks {
+  display: flex;
+  gap: 1px;
+  line-height: 1;
+}
+
+.blockFilled {
+  font-size: 8px;
+}
+
+.blockEmpty {
+  font-size: 8px;
+  opacity: 0.2;
+}
+
+.metricValue {
+  font-size: 10px;
+  color: var(--text-secondary);
+  min-width: 30px;
+  text-align: right;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.noConnection {
+  color: var(--text-dim);
+  font-size: 11px;
+}

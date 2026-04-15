@@ -1,0 +1,58 @@
+.titleBar {
+  height: var(--titlebar-height);
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.logo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  text-shadow: 0 0 10px var(--cyan-glow);
+}
+
+.searchBar {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 4px 12px;
+  min-width: 280px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.searchBar:hover {
+  border-color: var(--border);
+}
+
+.searchPlaceholder {
+  color: var(--text-dim);
+  font-size: 12px;
+  flex: 1;
+}
+
+.searchShortcut {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  background: var(--bg-elevated);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+}
+
+.spacer {
+  width: 100px;
+}

@@ -1,0 +1,96 @@
+.tabBar {
+  height: var(--tab-bar-height);
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 4px;
+  gap: 1px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.tabBar::-webkit-scrollbar {
+  height: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 28px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.tab:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--cyan);
+  background: var(--bg-surface);
+  border-bottom: 2px solid var(--cyan);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusConnected {
+  background: var(--status-connected);
+  box-shadow: 0 0 4px var(--status-connected);
+}
+
+.statusDisconnected {
+  background: var(--status-disconnected);
+}
+
+.tabClose {
+  font-size: 14px;
+  color: var(--text-dim);
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.tabClose:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.actionButton:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}

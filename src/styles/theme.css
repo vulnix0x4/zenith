@@ -1,0 +1,50 @@
+:root {
+  /* Backgrounds */
+  --bg-deep: #07070d;
+  --bg-base: #0a0a0f;
+  --bg-surface: #0d0d1a;
+  --bg-elevated: #1a1a2e;
+
+  /* Accent colors */
+  --cyan: #00ffc8;
+  --cyan-dim: #00ffc844;
+  --cyan-glow: #00ffc822;
+  --purple: #7B61FF;
+  --purple-dim: #7B61FF44;
+  --purple-glow: #7B61FF22;
+  --pink: #ff6b9d;
+  --pink-dim: #ff6b9d44;
+  --pink-glow: #ff6b9d22;
+  --blue: #00b4d8;
+  --blue-dim: #00b4d844;
+
+  /* Text */
+  --text-primary: #e0e0e0;
+  --text-secondary: #888;
+  --text-dim: #555;
+  --text-muted: #333;
+
+  /* Borders */
+  --border: #00ffc822;
+  --border-subtle: #ffffff08;
+
+  /* Status */
+  --status-connected: #00ffc8;
+  --status-disconnected: #555;
+  --status-error: #ff5f57;
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Sizing */
+  --activity-bar-width: 42px;
+  --sidebar-width: 260px;
+  --tab-bar-height: 36px;
+  --monitor-bar-height: 32px;
+  --titlebar-height: 38px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
