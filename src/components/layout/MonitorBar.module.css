@@ -3,26 +3,32 @@
   background: var(--bg-deep);
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 14px;
   border-top: 1px solid var(--border-subtle);
-  gap: 16px;
+  gap: 18px;
   font-family: var(--font-mono);
   font-size: 11px;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.monitorBar::-webkit-scrollbar {
+  display: none;
 }
 
 .metric {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   white-space: nowrap;
 }
 
 .metricLabel {
   color: var(--text-dim);
-  font-size: 10px;
-  min-width: 24px;
+  font-size: 11px;
+  font-weight: 500;
+  min-width: 26px;
 }
 
 .blocks {
@@ -32,18 +38,19 @@
 }
 
 .blockFilled {
-  font-size: 8px;
+  font-size: 9px;
+  filter: drop-shadow(0 0 2px currentColor);
 }
 
 .blockEmpty {
-  font-size: 8px;
-  opacity: 0.2;
+  font-size: 9px;
+  opacity: 0.15;
 }
 
 .metricValue {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
-  min-width: 30px;
+  min-width: 32px;
   text-align: right;
 }
 
@@ -56,8 +63,9 @@
   align-items: center;
   gap: 12px;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .noConnection {

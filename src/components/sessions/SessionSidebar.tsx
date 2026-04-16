@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
-import { invoke } from '@tauri-apps/api/core';
-import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSessionStore, type Session, type Folder } from '../../stores/sessionStore';
 import SessionDialog from './SessionDialog';
 import styles from './SessionSidebar.module.css';
@@ -65,37 +63,6 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
     [sessions, onConnect]
   );
 
-  const handleExport = useCallback(async () => {
-    try {
-      const path = await save({
-        title: 'Export Sessions',
-        defaultPath: 'zenith-sessions.json',
-        filters: [{ name: 'JSON', extensions: ['json'] }],
-      });
-      if (path) {
-        await invoke('export_sessions_file', { path });
-      }
-    } catch (err) {
-      console.error('Export failed:', err);
-    }
-  }, []);
-
-  const handleImport = useCallback(async () => {
-    try {
-      const path = await openDialog({
-        title: 'Import Sessions',
-        multiple: false,
-        filters: [{ name: 'JSON', extensions: ['json'] }],
-      });
-      if (path) {
-        await invoke('import_sessions_file', { path });
-        loadSessions();
-      }
-    } catch (err) {
-      console.error('Import failed:', err);
-    }
-  }, [loadSessions]);
-
   const rootSessions = sessions
     .filter((s) => !s.folderId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -107,6 +74,22 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
 
   return (
     <div className={styles.container}>
+      <div className={styles.topActions}>
+        <button className={styles.primaryBtn} onClick={handleNewSession}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Session
+        </button>
+        <button className={styles.secondaryBtn} onClick={handleNewFolder} title="New Folder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            <line x1="12" y1="11" x2="12" y2="17" />
+            <line x1="9" y1="14" x2="15" y2="14" />
+          </svg>
+        </button>
+      </div>
       <div className={styles.list}>
         {sortedFolders.map((folder) => {
           const folderSessions = getSessionsInFolder(folder.id);
@@ -164,23 +147,6 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
         {sessions.length === 0 && folders.length === 0 && (
           <div className={styles.empty}>No saved sessions</div>
         )}
-      </div>
-
-      <div className={styles.bottomActions}>
-        <button className={styles.actionBtn} onClick={handleNewSession}>
-          + New Session
-        </button>
-        <button className={styles.actionBtn} onClick={handleNewFolder}>
-          + New Folder
-        </button>
-      </div>
-      <div className={styles.bottomActions}>
-        <button className={styles.actionBtn} onClick={handleExport}>
-          Export
-        </button>
-        <button className={styles.actionBtn} onClick={handleImport}>
-          Import
-        </button>
       </div>
 
       <SessionDialog

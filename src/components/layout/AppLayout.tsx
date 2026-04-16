@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useMemo, type MutableRefObject } from
 import { v4 as uuid } from 'uuid';
 import { invoke } from '@tauri-apps/api/core';
 import type { Terminal } from '@xterm/xterm';
-import TitleBar from './TitleBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import TabBar from './TabBar';
@@ -13,6 +12,8 @@ import CommandPalette from '../command-palette/CommandPalette';
 import PasswordPrompt from '../dialogs/PasswordPrompt';
 import { useTabStore } from '../../stores/tabStore';
 import { useSessionStore, type Session } from '../../stores/sessionStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useLayoutStore } from '../../stores/layoutStore';
 import { useSshConnection } from '../../hooks/useSshConnection';
 import { useMonitoring } from '../../hooks/useMonitoring';
 import styles from './AppLayout.module.css';
@@ -181,6 +182,19 @@ export default function AppLayout() {
     [tabs, disconnect, unregisterTerminal, removeTab]
   );
 
+  // Auto-collapse sidebar when a tab connects
+  const { sidebarOpen, toggleSidebar } = useLayoutStore();
+  const autoCollapse = useSettingsStore((s) => s.settings.general.autoCollapseSidebar);
+
+  useEffect(() => {
+    const hasConnected = tabs.some((t) => t.connected);
+    if (hasConnected && autoCollapse !== false && sidebarOpen) {
+      toggleSidebar();
+    }
+    // Only trigger when connection state changes, not on every sidebar toggle
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs.filter((t) => t.connected).length]);
+
   // Global Cmd/Ctrl+K shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -195,7 +209,7 @@ export default function AppLayout() {
 
   return (
     <div className={styles.layout}>
-      <TitleBar onSearchClick={() => setShowPalette(true)} />
+      <div className={styles.dragStrip} />
       <div className={styles.body}>
         <ActivityBar />
         <Sidebar
@@ -204,7 +218,7 @@ export default function AppLayout() {
           activeSessionId={activeSessionId}
         />
         <div className={styles.mainArea}>
-          <TabBar onNewTab={handleNewTab} onCloseTab={handleTabClose} />
+          <TabBar onNewTab={handleNewTab} onCloseTab={handleTabClose} onSearchClick={() => setShowPalette(true)} />
           <div className={styles.terminalArea}>
             {tabs.length === 0 && (
               <div className={styles.placeholder}>

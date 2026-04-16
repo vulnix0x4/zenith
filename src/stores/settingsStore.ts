@@ -20,6 +20,7 @@ export interface GeneralSettings {
   reconnectDelay: number;
   confirmOnClose: boolean;
   selectToCopy: boolean;
+  autoCollapseSidebar: boolean;
 }
 
 export interface AppSettings {
@@ -46,6 +47,7 @@ const defaultSettings: AppSettings = {
     reconnectDelay: 5,
     confirmOnClose: true,
     selectToCopy: true,
+    autoCollapseSidebar: true,
   },
 };
 

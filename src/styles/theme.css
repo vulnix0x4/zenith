@@ -38,11 +38,10 @@
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Sizing */
-  --activity-bar-width: 42px;
+  --activity-bar-width: 46px;
   --sidebar-width: 260px;
   --tab-bar-height: 36px;
-  --monitor-bar-height: 32px;
-  --titlebar-height: 38px;
+  --monitor-bar-height: 40px;
 
   /* Transitions */
   --transition-fast: 0.15s ease;
