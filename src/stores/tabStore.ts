@@ -177,7 +177,7 @@ function tabTitleFor(tab: Tab): string {
 // Store
 // ---------------------------------------------------------------------------
 
-export const useTabStore = create<TabState>((set, get) => ({
+export const useTabStore = create<TabState>((set) => ({
   tabs: [],
   activeTabId: null,
 
