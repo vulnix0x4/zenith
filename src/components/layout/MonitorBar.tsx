@@ -6,10 +6,14 @@ interface MetricBarProps {
   percentage: number;
   detail?: string;
   color: string;
+  /** Min-width in px for the value cell. Set per-metric so e.g. NET (which
+   *  shows two rates and grows/shrinks digit count every tick) doesn't
+   *  push neighbouring metrics around. */
+  valueMinWidth?: number;
 }
 
-function MetricBar({ label, percentage, detail, color }: MetricBarProps) {
-  const total = 10;
+function MetricBar({ label, percentage, detail, color, valueMinWidth }: MetricBarProps) {
+  const total = 6;
   const filled = Math.round((percentage / 100) * total);
 
   return (
@@ -26,7 +30,10 @@ function MetricBar({ label, percentage, detail, color }: MetricBarProps) {
           </span>
         ))}
       </span>
-      <span className={styles.metricValue}>
+      <span
+        className={styles.metricValue}
+        style={valueMinWidth ? { minWidth: `${valueMinWidth}px` } : undefined}
+      >
         {detail ?? `${Math.round(percentage)}%`}
       </span>
     </div>
@@ -64,6 +71,7 @@ export default function MonitorBar({ data }: MonitorBarProps) {
         percentage={0}
         detail={`${data.networkDown} \u2193 ${data.networkUp} \u2191`}
         color="var(--pink)"
+        valueMinWidth={170}
       />
       <MetricBar
         label="DSK"
@@ -73,7 +81,6 @@ export default function MonitorBar({ data }: MonitorBarProps) {
       />
       <div className={styles.spacer} />
       <div className={styles.info}>
-        <span>{data.hostname}</span>
         <span>{data.uptime}</span>
       </div>
     </div>

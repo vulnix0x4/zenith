@@ -5,67 +5,123 @@
   overflow: hidden;
 }
 
-/* single layout */
-.layoutSingle {
-  flex-direction: column;
+/* A split node is a flex container; direction is set inline by the renderer
+   so it can switch between row (horizontal split) and column (vertical). */
+.split {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* horizontal-2: two panes side by side */
-.layoutHorizontal2 {
-  flex-direction: row;
+.splitChild {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* vertical-2: two panes stacked */
-.layoutVertical2 {
-  flex-direction: column;
+/* Visible thin divider between sibling panes. Slightly cyan-tinted to match
+   the terminal frame; not yet draggable for resize (planned for a follow-up). */
+.dividerH {
+  width: 1px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 
-/* quad: 2x2 grid */
-.layoutQuad {
-  flex-wrap: wrap;
+.dividerV {
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 
+/* Leaf pane */
 .pane {
-  flex: 1 1 50%;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+}
+
+/* Subtle highlight when more than one pane is shown so the user can tell
+   which one will receive keystrokes / which is "active". */
+.paneFocused::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--cyan-dim);
+  z-index: 3;
+}
+
+.paneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  padding: 0 6px 0 10px;
+  background: var(--bg-deep);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.paneTitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.paneClose {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  border-radius: 3px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.paneClose:hover {
+  background: var(--bg-elevated);
+  color: var(--status-error);
+}
+
+/* Slot div that AppLayout portals an XTerminal into. Fills the remaining
+   pane area below any per-pane chrome. */
+.terminalSlot {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   position: relative;
 }
 
-.layoutSingle .pane {
-  flex: 1 1 100%;
+/* Drop zone overlay -- semi-transparent cyan slab covering the half of the
+   pane the dropped tab will occupy. */
+.dropOverlay {
+  position: absolute;
+  background: var(--cyan-glow);
+  border: 1px dashed var(--cyan);
+  pointer-events: none;
+  z-index: 4;
+  transition: all var(--transition-fast);
 }
 
-.layoutQuad .pane {
-  flex: 1 1 50%;
-  max-width: 50%;
-  max-height: 50%;
-}
-
-/* Subtle divider between panes */
-.layoutHorizontal2 .pane + .pane {
-  border-left: 1px solid var(--border-subtle);
-}
-
-.layoutVertical2 .pane + .pane {
-  border-top: 1px solid var(--border-subtle);
-}
-
-.layoutQuad .pane:nth-child(2) {
-  border-left: 1px solid var(--border-subtle);
-}
-
-.layoutQuad .pane:nth-child(3) {
-  border-top: 1px solid var(--border-subtle);
-}
-
-.layoutQuad .pane:nth-child(4) {
-  border-left: 1px solid var(--border-subtle);
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* Placeholder for empty panes */
+/* Placeholder when an empty pane is somehow rendered (defensive). */
 .placeholder {
   width: 100%;
   height: 100%;

@@ -21,6 +21,13 @@ export interface GeneralSettings {
   confirmOnClose: boolean;
   selectToCopy: boolean;
   autoCollapseSidebar: boolean;
+  /** When true, file browser auto-navigates to the terminal's CWD via OSC 7. */
+  followTerminalCwd: boolean;
+  /** When true, send a one-line OSC 7 setup snippet to the remote shell on
+   *  connect so the user doesn't have to edit their .bashrc / .zshrc. */
+  injectShellIntegration: boolean;
+  /** When true, file browser shows entries beginning with "." (dotfiles). */
+  showHiddenFiles: boolean;
 }
 
 export interface AppSettings {
@@ -48,6 +55,9 @@ const defaultSettings: AppSettings = {
     confirmOnClose: true,
     selectToCopy: true,
     autoCollapseSidebar: true,
+    followTerminalCwd: true,
+    injectShellIntegration: true,
+    showHiddenFiles: false,
   },
 };
 

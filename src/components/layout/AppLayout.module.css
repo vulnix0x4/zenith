@@ -33,6 +33,21 @@
   justify-content: center;
   background: var(--bg-base);
   overflow: hidden;
+  position: relative;
+}
+
+/* Cyan frame applied only when at least one terminal tab is open.
+   Implemented as an absolutely positioned overlay (::after) rather than a
+   border or inset shadow because xterm's WebGL canvas + viewport scrollbar
+   were painting over the right edge of a real border. The overlay sits
+   above everything with pointer-events: none so it doesn't block input. */
+.terminalAreaActive::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .placeholder {

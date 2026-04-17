@@ -2,12 +2,17 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  border-radius: 2px;
-  box-shadow: inset 0 0 30px rgba(0, 255, 200, 0.02);
 }
 
 .terminalContainer :global(.xterm) {
-  padding: 12px;
+  padding: 0;
+}
+
+.terminalContainer :global(.xterm-screen) {
+  /* xterm-screen is sized to cols * cell width and may leave a sliver of
+     padding-coloured space on the right; bleed the background through so
+     it matches the terminal surface seamlessly. */
+  background: var(--bg-base);
 }
 
 .terminalContainer :global(.xterm-viewport) {

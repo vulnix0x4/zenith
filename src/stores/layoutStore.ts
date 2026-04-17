@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type SidebarPanel = 'sessions' | 'files' | 'monitoring' | 'settings';
+export type SidebarPanel = 'sessions' | 'files' | 'settings';
 
 interface LayoutState {
   sidebarOpen: boolean;

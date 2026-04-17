@@ -5,13 +5,34 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width var(--transition-normal);
   flex-shrink: 0;
+  position: relative;
 }
 
 .sidebarCollapsed {
-  width: 0;
+  width: 0 !important;
   border-right: none;
+  transition: width var(--transition-normal);
+}
+
+/* Drag handle on the right edge -- a thin invisible strip that lights up on
+   hover so the user can find it. Positioned absolutely so it doesn't change
+   the sidebar's flex layout and overlaps the inner content's edge. */
+.resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--transition-fast);
+  z-index: 1;
+}
+
+.resizer:hover,
+.resizer:active {
+  background: var(--cyan-dim);
 }
 
 .header {

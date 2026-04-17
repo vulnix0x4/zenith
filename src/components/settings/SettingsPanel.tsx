@@ -114,6 +114,22 @@ export default function SettingsPanel() {
             onClick={() => updateGeneral({ selectToCopy: !general.selectToCopy })}
           />
         </div>
+
+        <div className={styles.row}>
+          <span className={styles.label}>Files Follow Terminal CWD</span>
+          <div
+            className={`${styles.toggle} ${general.followTerminalCwd ? styles.toggleActive : ''}`}
+            onClick={() => updateGeneral({ followTerminalCwd: !general.followTerminalCwd })}
+          />
+        </div>
+
+        <div className={styles.row}>
+          <span className={styles.label}>Auto-Inject Shell Integration</span>
+          <div
+            className={`${styles.toggle} ${general.injectShellIntegration ? styles.toggleActive : ''}`}
+            onClick={() => updateGeneral({ injectShellIntegration: !general.injectShellIntegration })}
+          />
+        </div>
       </div>
 
       {/* Terminal Settings */}

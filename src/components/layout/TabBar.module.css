@@ -109,3 +109,47 @@
   background: var(--cyan);
   box-shadow: 0 0 6px var(--cyan);
 }
+
+/* Inline rename input shown in place of the tab title */
+.renameInput {
+  background: var(--bg-deep);
+  border: 1px solid var(--cyan-dim);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 1px 6px;
+  outline: none;
+  min-width: 80px;
+  width: 140px;
+}
+
+/* Right-click context menu */
+.contextMenu {
+  position: fixed;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 140px;
+  z-index: 100;
+}
+
+.contextItem {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  border-radius: 3px;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.contextItem:hover {
+  background: var(--cyan-glow);
+  color: var(--cyan);
+}
