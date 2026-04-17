@@ -65,6 +65,28 @@ pub struct GeneralSettings {
     pub reconnect_delay: u32,
     pub confirm_on_close: bool,
     pub select_to_copy: bool,
+    /// When true, the file browser auto-navigates to the terminal's current
+    /// working directory whenever the shell emits an OSC 7 sequence.
+    /// Defaulted via serde so older settings.json files keep loading.
+    #[serde(default = "default_follow_terminal_cwd")]
+    pub follow_terminal_cwd: bool,
+    /// When true, after SSH connect Zenith pipes a small setup snippet into
+    /// the remote shell so it emits OSC 7 on every prompt without the user
+    /// having to edit their .bashrc / .zshrc by hand.
+    #[serde(default = "default_inject_shell_integration")]
+    pub inject_shell_integration: bool,
+    /// When true, the file browser shows dotfiles (entries starting with `.`).
+    /// Off by default -- most users don't want config noise in the listing.
+    #[serde(default)]
+    pub show_hidden_files: bool,
+}
+
+fn default_follow_terminal_cwd() -> bool {
+    true
+}
+
+fn default_inject_shell_integration() -> bool {
+    true
 }
 
 impl Default for GeneralSettings {
@@ -74,6 +96,9 @@ impl Default for GeneralSettings {
             reconnect_delay: 5,
             confirm_on_close: true,
             select_to_copy: true,
+            follow_terminal_cwd: true,
+            inject_shell_integration: true,
+            show_hidden_files: false,
         }
     }
 }

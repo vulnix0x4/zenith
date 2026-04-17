@@ -1,14 +1,18 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::ipc::Channel;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::monitoring::collector::collect_metrics;
+use crate::monitoring::collector::{collect_sample, compute_metrics, RawSample};
 use crate::monitoring::types::MonitorData;
 use crate::ssh::SharedSshHandle;
+
+/// Interval between metric samples. Determines how snappy the live monitor
+/// feels. ~1s gives near-real-time updates while keeping SSH overhead modest.
+const SAMPLE_INTERVAL: Duration = Duration::from_millis(1000);
 
 /// Manages background monitoring tasks, one per SSH session.
 pub struct MonitorManager {
@@ -62,6 +66,10 @@ impl MonitorManager {
 }
 
 /// The main polling loop. Runs until the task is aborted or the SSH connection drops.
+///
+/// Uses a sliding window: take one sample per tick and diff against the
+/// previous sample to derive CPU% and network rates. This gives ~1s updates
+/// instead of the ~4s cycle a two-samples-per-tick approach would impose.
 async fn monitoring_loop(
     session_id: &str,
     handle: &SharedSshHandle,
@@ -70,18 +78,40 @@ async fn monitoring_loop(
     let mut consecutive_errors: u32 = 0;
     const MAX_ERRORS: u32 = 5;
 
+    // Prime the window with an initial sample so the very first emission
+    // already has a delta to compare against.
+    let mut prev: Option<(RawSample, Instant)> = match collect_sample(handle).await {
+        Ok(s) => Some((s, Instant::now())),
+        Err(e) => {
+            log::warn!(
+                "Initial monitoring sample failed for session {}: {}",
+                session_id,
+                e
+            );
+            None
+        }
+    };
+
     loop {
-        match collect_metrics(handle).await {
-            Ok(data) => {
+        tokio::time::sleep(SAMPLE_INTERVAL).await;
+
+        match collect_sample(handle).await {
+            Ok(curr) => {
                 consecutive_errors = 0;
-                if on_event.send(data).is_err() {
-                    // Channel closed, frontend no longer listening
-                    log::debug!(
-                        "Monitoring channel closed for session {}, stopping",
-                        session_id
-                    );
-                    break;
+                let now = Instant::now();
+
+                if let Some((p, t)) = &prev {
+                    let elapsed = now.duration_since(*t).as_secs_f64();
+                    let data = compute_metrics(p, &curr, elapsed);
+                    if on_event.send(data).is_err() {
+                        log::debug!(
+                            "Monitoring channel closed for session {}, stopping",
+                            session_id
+                        );
+                        break;
+                    }
                 }
+                prev = Some((curr, now));
             }
             Err(e) => {
                 consecutive_errors += 1;
@@ -102,9 +132,5 @@ async fn monitoring_loop(
                 }
             }
         }
-
-        // Wait before next poll. The collect itself takes ~1s (two samples),
-        // so the effective interval is ~3-4 seconds.
-        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 }

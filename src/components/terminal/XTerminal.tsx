@@ -10,10 +10,12 @@ import styles from './XTerminal.module.css';
 interface XTerminalProps {
   onData: (data: string) => void;
   onResize: (cols: number, rows: number) => void;
+  /** Fired when the shell emits an OSC 7 sequence reporting its working dir. */
+  onCwdChange?: (cwd: string) => void;
   terminalRef?: MutableRefObject<Terminal | null>;
 }
 
-export default function XTerminal({ onData, onResize, terminalRef }: XTerminalProps) {
+export default function XTerminal({ onData, onResize, onCwdChange, terminalRef }: XTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
 
@@ -68,6 +70,24 @@ export default function XTerminal({ onData, onResize, terminalRef }: XTerminalPr
       onResize(cols, rows);
     });
 
+    // OSC 7 (working directory). Shells emit:
+    //   ESC ] 7 ; file://<host>/<path> ESC \
+    // We get just the payload "file://host/path". Decode and forward the path.
+    // Returns true to mark the OSC as handled so xterm doesn't pass it on.
+    const oscDisposable = terminal.parser.registerOscHandler(7, (payload) => {
+      try {
+        // file://host/path -- pull the pathname and percent-decode it
+        const url = new URL(payload);
+        const decoded = decodeURIComponent(url.pathname);
+        if (decoded && onCwdChange) {
+          onCwdChange(decoded);
+        }
+      } catch {
+        // Bad payload -- swallow silently
+      }
+      return true;
+    });
+
     // Select-to-copy: copy selection to clipboard on selection change
     const selectionDisposable = terminal.onSelectionChange(() => {
       const selection = terminal.getSelection();
@@ -117,6 +137,7 @@ export default function XTerminal({ onData, onResize, terminalRef }: XTerminalPr
       dataDisposable.dispose();
       resizeDisposable.dispose();
       selectionDisposable.dispose();
+      oscDisposable.dispose();
       terminal.dispose();
       termRef.current = null;
     };

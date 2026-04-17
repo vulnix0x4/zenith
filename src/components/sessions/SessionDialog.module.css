@@ -69,6 +69,10 @@
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  /* Equal share of the row + min-width:0 lets the label shrink below the
+     input's intrinsic width so two side-by-side fields fit the dialog. */
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .input {
@@ -81,6 +85,10 @@
   color: var(--text-primary);
   outline: none;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  /* Fill the label container; prevents browser-default input width from
+     bursting out of narrow flex parents. */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .input:focus {

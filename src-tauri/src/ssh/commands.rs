@@ -23,13 +23,16 @@ pub async fn ssh_connect(
         }
     });
 
-    // Send Connected event first, then establish the connection
-    let _ = event_tx.send(SshEvent::Connected);
-
+    // Establish the connection first so the session is registered in the
+    // manager. Only then signal Connected to the frontend, otherwise the UI
+    // can race ahead and call into the backend (e.g. start_monitoring) before
+    // the session entry exists.
     manager
-        .connect(request, event_tx)
+        .connect(request, event_tx.clone())
         .await
         .map_err(|e| e.to_string())?;
+
+    let _ = event_tx.send(SshEvent::Connected);
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use russh::ChannelMsg;
@@ -19,17 +19,12 @@ const METRICS_CMD: &str = concat!(
 
 const SEPARATOR: &str = "---ZENITH_SEP---";
 
-/// Collect system metrics by taking two samples 1 second apart.
-/// This allows calculating CPU and network rates from deltas.
-pub async fn collect_metrics(handle: &SharedSshHandle) -> Result<MonitorData> {
-    let t1 = Instant::now();
-    let output1 = exec_command(handle, METRICS_CMD).await?;
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    let output2 = exec_command(handle, METRICS_CMD).await?;
-    let elapsed = t1.elapsed().as_secs_f64() - 1.0; // subtract the sleep
-    let elapsed = if elapsed < 0.5 { 1.0 } else { elapsed };
-
-    parse_metrics(&output1, &output2, elapsed)
+/// Collect a single raw metrics sample over the SSH connection.
+/// Used by the monitoring loop to maintain a sliding window so deltas
+/// (CPU%, network rates) can be computed without taking two samples per tick.
+pub(crate) async fn collect_sample(handle: &SharedSshHandle) -> Result<RawSample> {
+    let output = exec_command(handle, METRICS_CMD).await?;
+    parse_raw_sample(&output)
 }
 
 /// Execute a command on the SSH connection and collect all stdout.
@@ -76,7 +71,7 @@ async fn exec_command(handle: &SharedSshHandle, cmd: &str) -> Result<String> {
 }
 
 /// Parsed intermediate data from a single sample.
-struct RawSample {
+pub(crate) struct RawSample {
     cpu_active: u64,
     cpu_total: u64,
     mem_total_kb: u64,
@@ -121,44 +116,46 @@ fn parse_raw_sample(output: &str) -> Result<RawSample> {
     })
 }
 
-fn parse_metrics(output1: &str, output2: &str, _elapsed: f64) -> Result<MonitorData> {
-    let s1 = parse_raw_sample(output1)?;
-    let s2 = parse_raw_sample(output2)?;
-
-    // CPU: delta of active/total
-    let cpu = if s2.cpu_total > s1.cpu_total {
-        let total_diff = (s2.cpu_total - s1.cpu_total) as f64;
-        let active_diff = (s2.cpu_active - s1.cpu_active) as f64;
+/// Compute display metrics from a previous and current sample.
+/// `elapsed_secs` is the wall-clock time between the two samples and is
+/// used to convert byte-deltas into per-second rates.
+pub(crate) fn compute_metrics(prev: &RawSample, curr: &RawSample, elapsed_secs: f64) -> MonitorData {
+    // CPU: delta of active/total. /proc/stat is in jiffies, so the ratio
+    // is independent of elapsed_secs.
+    let cpu = if curr.cpu_total > prev.cpu_total {
+        let total_diff = (curr.cpu_total - prev.cpu_total) as f64;
+        let active_diff = (curr.cpu_active - prev.cpu_active) as f64;
         (active_diff / total_diff * 100.0).clamp(0.0, 100.0)
     } else {
         0.0
     };
 
-    // RAM
-    let ram_used_kb = s2.mem_total_kb.saturating_sub(s2.mem_available_kb);
-    let ram = if s2.mem_total_kb > 0 {
-        (ram_used_kb as f64 / s2.mem_total_kb as f64 * 100.0).clamp(0.0, 100.0)
+    // RAM (point-in-time, no delta needed)
+    let ram_used_kb = curr.mem_total_kb.saturating_sub(curr.mem_available_kb);
+    let ram = if curr.mem_total_kb > 0 {
+        (ram_used_kb as f64 / curr.mem_total_kb as f64 * 100.0).clamp(0.0, 100.0)
     } else {
         0.0
     };
 
-    // Network rates (bytes/sec between samples)
-    let rx_rate = s2.net_rx_bytes.saturating_sub(s1.net_rx_bytes) as f64;
-    let tx_rate = s2.net_tx_bytes.saturating_sub(s1.net_tx_bytes) as f64;
+    // Network rates: bytes-per-second normalised by elapsed time
+    let elapsed = if elapsed_secs > 0.05 { elapsed_secs } else { 1.0 };
+    let rx_rate = curr.net_rx_bytes.saturating_sub(prev.net_rx_bytes) as f64 / elapsed;
+    let tx_rate = curr.net_tx_bytes.saturating_sub(prev.net_tx_bytes) as f64 / elapsed;
 
-    Ok(MonitorData {
+    MonitorData {
         cpu: round2(cpu),
         ram: round2(ram),
         ram_used: format_bytes_kb(ram_used_kb),
-        ram_total: format_bytes_kb(s2.mem_total_kb),
+        ram_total: format_bytes_kb(curr.mem_total_kb),
         network_down: format_rate(rx_rate),
         network_up: format_rate(tx_rate),
-        disk: round2(s2.disk_percent),
-        disk_used: format_bytes(s2.disk_used),
-        disk_total: format_bytes(s2.disk_total),
-        uptime: format_uptime(s2.uptime_secs),
-        hostname: s2.hostname,
-    })
+        disk: round2(curr.disk_percent),
+        disk_used: format_bytes(curr.disk_used),
+        disk_total: format_bytes(curr.disk_total),
+        uptime: format_uptime(curr.uptime_secs),
+        hostname: curr.hostname.clone(),
+    }
 }
 
 // ---------------------------------------------------------------------------
