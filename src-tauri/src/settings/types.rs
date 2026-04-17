@@ -65,6 +65,13 @@ pub struct GeneralSettings {
     pub reconnect_delay: u32,
     pub confirm_on_close: bool,
     pub select_to_copy: bool,
+    /// When true, the sidebar collapses automatically after the first SSH
+    /// connection establishes (and re-collapses when the user clicks back
+    /// into the terminal area). Originally only existed on the TS side --
+    /// missing here meant `save_settings` silently dropped the field, so
+    /// the toggle in the Settings panel never stuck.
+    #[serde(default = "default_auto_collapse_sidebar")]
+    pub auto_collapse_sidebar: bool,
     /// When true, the file browser auto-navigates to the terminal's current
     /// working directory whenever the shell emits an OSC 7 sequence.
     /// Defaulted via serde so older settings.json files keep loading.
@@ -79,6 +86,10 @@ pub struct GeneralSettings {
     /// Off by default -- most users don't want config noise in the listing.
     #[serde(default)]
     pub show_hidden_files: bool,
+}
+
+fn default_auto_collapse_sidebar() -> bool {
+    true
 }
 
 fn default_follow_terminal_cwd() -> bool {
@@ -96,6 +107,7 @@ impl Default for GeneralSettings {
             reconnect_delay: 5,
             confirm_on_close: true,
             select_to_copy: true,
+            auto_collapse_sidebar: true,
             follow_terminal_cwd: true,
             inject_shell_integration: true,
             show_hidden_files: false,

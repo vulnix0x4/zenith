@@ -9,11 +9,26 @@ interface SessionSidebarProps {
   connectedSessionIds: Set<string>;
 }
 
+/** Custom MIME used to mark a session-id payload during drag-and-drop.
+ *  Anything more generic (text/plain) would let unrelated drags fool the
+ *  drop targets into thinking they have a session in flight. */
+const SESSION_MIME = 'application/x-zenith-session';
+
+/** Returns true when the current drag carries a session payload. We can't
+ *  call dataTransfer.getData() during dragover (browsers redact it for
+ *  security), so we sniff the types list instead. */
+function dragHasSession(e: React.DragEvent): boolean {
+  return Array.from(e.dataTransfer.types).includes(SESSION_MIME);
+}
+
 export default function SessionSidebar({ onConnect, connectedSessionIds }: SessionSidebarProps) {
-  const { sessions, folders, loadSessions, saveSession, saveFolder, deleteSession, deleteFolder, toggleFolder } =
+  const { sessions, folders, loadSessions, saveSession, saveFolder, deleteSession, deleteFolder, toggleFolder, moveSession } =
     useSessionStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
+  // Folder id currently highlighted as a drop target during a drag, or
+  // 'root' for the bottom (no-folder) area.
+  const [dropTarget, setDropTarget] = useState<string | 'root' | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -63,6 +78,38 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
     [sessions, onConnect]
   );
 
+  // ---- Drag and drop -----------------------------------------------------
+
+  const handleSessionDragStart = useCallback(
+    (e: React.DragEvent, sessionId: string) => {
+      e.dataTransfer.setData(SESSION_MIME, sessionId);
+      e.dataTransfer.effectAllowed = 'move';
+    },
+    []
+  );
+
+  const handleSessionDragEnd = useCallback(() => {
+    setDropTarget(null);
+  }, []);
+
+  /** Move the dragged session to the supplied folder (or null = root).
+   *  No-op if the session is already there. */
+  const handleDropToTarget = useCallback(
+    (e: React.DragEvent, folderId: string | null) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDropTarget(null);
+      const sid = e.dataTransfer.getData(SESSION_MIME);
+      if (!sid) return;
+      const session = sessions.find((s) => s.id === sid);
+      if (!session) return;
+      const currentFolder = session.folderId ?? null;
+      if (currentFolder === folderId) return;
+      moveSession(sid, folderId);
+    },
+    [sessions, moveSession]
+  );
+
   const rootSessions = sessions
     .filter((s) => !s.folderId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -90,11 +137,43 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
           </svg>
         </button>
       </div>
-      <div className={styles.list}>
+      <div
+        className={`${styles.list} ${dropTarget === 'root' ? styles.listDropTarget : ''}`}
+        onDragOver={(e) => {
+          if (!dragHasSession(e)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setDropTarget('root');
+        }}
+        onDragLeave={(e) => {
+          // Only clear if the pointer truly left the list (not into a child)
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDropTarget((t) => (t === 'root' ? null : t));
+          }
+        }}
+        onDrop={(e) => handleDropToTarget(e, null)}
+      >
         {sortedFolders.map((folder) => {
           const folderSessions = getSessionsInFolder(folder.id);
+          const isDropTarget = dropTarget === folder.id;
           return (
-            <div key={folder.id} className={styles.folderGroup}>
+            <div
+              key={folder.id}
+              className={`${styles.folderGroup} ${isDropTarget ? styles.folderGroupDropTarget : ''}`}
+              onDragOver={(e) => {
+                if (!dragHasSession(e)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                setDropTarget(folder.id);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDropTarget((t) => (t === folder.id ? null : t));
+                }
+              }}
+              onDrop={(e) => handleDropToTarget(e, folder.id)}
+            >
               <div
                 className={styles.folderHeader}
                 onClick={() => toggleFolder(folder.id)}
@@ -126,6 +205,8 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
                     onDoubleClick={() => handleDoubleClickSession(session)}
                     onEdit={() => handleEditSession(session)}
                     onDelete={() => deleteSession(session.id)}
+                    onDragStart={handleSessionDragStart}
+                    onDragEnd={handleSessionDragEnd}
                   />
                 ))}
             </div>
@@ -141,6 +222,8 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
             onDoubleClick={() => handleDoubleClickSession(session)}
             onEdit={() => handleEditSession(session)}
             onDelete={() => deleteSession(session.id)}
+            onDragStart={handleSessionDragStart}
+            onDragEnd={handleSessionDragEnd}
           />
         ))}
 
@@ -166,6 +249,8 @@ function SessionItem({
   onDoubleClick,
   onEdit,
   onDelete,
+  onDragStart,
+  onDragEnd,
 }: {
   session: Session;
   connected: boolean;
@@ -173,10 +258,15 @@ function SessionItem({
   onDoubleClick: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onDragStart: (e: React.DragEvent, sessionId: string) => void;
+  onDragEnd: () => void;
 }) {
   return (
     <div
       className={`${styles.sessionItem} ${indented ? styles.indented : ''}`}
+      draggable
+      onDragStart={(e) => onDragStart(e, session.id)}
+      onDragEnd={onDragEnd}
       onDoubleClick={onDoubleClick}
     >
       <span

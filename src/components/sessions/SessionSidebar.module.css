@@ -64,10 +64,29 @@
 .list {
   flex: 1;
   overflow-y: auto;
+  /* Cyan-tinted dashed outline when a session is being dragged toward the
+     bottom (root) area. Inset so it doesn't shift layout. */
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.listDropTarget {
+  border-color: var(--cyan-dim);
+  background: rgba(0, 255, 200, 0.03);
 }
 
 .folderGroup {
   margin-bottom: 2px;
+  border-radius: 4px;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* Highlight a folder when a dragged session is hovering over it -- soft
+   cyan glow makes the drop target obvious. */
+.folderGroupDropTarget {
+  background: var(--cyan-glow);
+  box-shadow: 0 0 0 1px var(--cyan-dim), 0 0 8px var(--cyan-glow);
 }
 
 .folderHeader {
