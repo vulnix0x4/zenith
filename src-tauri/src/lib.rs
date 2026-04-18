@@ -4,6 +4,7 @@ mod sessions;
 mod settings;
 mod sftp;
 mod ssh;
+mod updater;
 
 use credentials::commands::*;
 use monitoring::commands::*;
@@ -14,6 +15,7 @@ use sftp::commands::*;
 use sftp::manager::SftpManager;
 use ssh::commands::*;
 use ssh::manager::SshManager;
+use updater::download_and_install_update;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -51,6 +53,7 @@ pub fn run() {
             save_credential,
             get_credential,
             delete_credential,
+            download_and_install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
