@@ -86,6 +86,17 @@ pub struct GeneralSettings {
     pub reconnect_delay: u32,
     pub confirm_on_close: bool,
     pub select_to_copy: bool,
+    /// When true, clicking outside the sidebar (terminal area, title bar,
+    /// any non-sidebar element) collapses it. Off preserves an always-open
+    /// sidebar layout for users who dock the app wide.
+    #[serde(default = "default_auto_collapse_sidebar")]
+    pub auto_collapse_sidebar: bool,
+    /// When true, mark hostnames / usernames / session names / file paths
+    /// with a CSS blur so the user can share or record their screen
+    /// without leaking customer-identifying strings. Toggled at runtime;
+    /// affects nothing on disk.
+    #[serde(default)]
+    pub privacy_mode: bool,
     /// When true, the file browser auto-navigates to the terminal's current
     /// working directory whenever the shell emits an OSC 7 sequence.
     /// Defaulted via serde so older settings.json files keep loading.
@@ -110,6 +121,10 @@ pub struct GeneralSettings {
     pub ssh_keepalive_seconds: u32,
 }
 
+fn default_auto_collapse_sidebar() -> bool {
+    true
+}
+
 fn default_follow_terminal_cwd() -> bool {
     true
 }
@@ -129,6 +144,8 @@ impl Default for GeneralSettings {
             reconnect_delay: 5,
             confirm_on_close: true,
             select_to_copy: true,
+            auto_collapse_sidebar: true,
+            privacy_mode: false,
             follow_terminal_cwd: true,
             inject_shell_integration: true,
             show_hidden_files: false,

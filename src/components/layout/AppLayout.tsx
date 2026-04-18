@@ -356,6 +356,18 @@ export default function AppLayout() {
 
   const { sidebarOpen, toggleSidebar } = useLayoutStore();
   const autoCollapse = useSettingsStore((s) => s.settings.general.autoCollapseSidebar);
+  const privacyMode = useSettingsStore((s) => s.settings.general.privacyMode);
+
+  // Toggle a root-level `privacy-mode` class on <body> so global CSS rules
+  // can blur any element marked with `data-private`. Kept at the body level
+  // (not a React portal or wrapper div) so no layout recomputation is
+  // triggered when the toggle flips.
+  useEffect(() => {
+    document.body.classList.toggle('privacy-mode', !!privacyMode);
+    return () => {
+      document.body.classList.remove('privacy-mode');
+    };
+  }, [privacyMode]);
 
   // Document-level click-outside listener: whenever the user clicks anywhere
   // that isn't the sidebar, activity bar, or title bar, collapse the sidebar

@@ -107,6 +107,16 @@ export default function SettingsPanel() {
         </div>
 
         <div className={styles.row}>
+          <span className={styles.label} title="Blur hostnames, usernames, session names, and file paths so you can share or record your screen without leaking them. Hover a blurred field to temporarily reveal it for yourself.">
+            Privacy Mode (blur hosts &amp; names)
+          </span>
+          <div
+            className={`${styles.toggle} ${general.privacyMode ? styles.toggleActive : ''}`}
+            onClick={() => updateGeneral({ privacyMode: !general.privacyMode })}
+          />
+        </div>
+
+        <div className={styles.row}>
           <span className={styles.label}>Auto Reconnect</span>
           <div
             className={`${styles.toggle} ${general.autoReconnect ? styles.toggleActive : ''}`}

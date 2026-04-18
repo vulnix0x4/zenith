@@ -314,7 +314,7 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
                     onCancel={() => setEditingFolderId(null)}
                   />
                 ) : (
-                  <span className={styles.folderName}>{folder.name}</span>
+                  <span className={styles.folderName} data-private>{folder.name}</span>
                 )}
                 <span className={styles.badge}>{folderSessions.length}</span>
                 <button
@@ -456,8 +456,8 @@ function SessionItem({
         className={`${styles.statusDot} ${connected ? styles.statusConnected : ''}`}
       />
       <div className={styles.sessionInfo}>
-        <span className={styles.sessionName}>{session.name}</span>
-        <span className={styles.sessionHost}>
+        <span className={styles.sessionName} data-private>{session.name}</span>
+        <span className={styles.sessionHost} data-private>
           {session.username}@{session.hostname}
         </span>
       </div>

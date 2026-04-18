@@ -22,6 +22,10 @@ export interface GeneralSettings {
   confirmOnClose: boolean;
   selectToCopy: boolean;
   autoCollapseSidebar: boolean;
+  /** When true, hostnames / usernames / session names / file paths are
+   *  rendered with a CSS blur so screen sharing doesn't leak them. Hover
+   *  a blurred element to temporarily reveal it for yourself. */
+  privacyMode: boolean;
   /** When true, file browser auto-navigates to the terminal's CWD via OSC 7. */
   followTerminalCwd: boolean;
   /** When true, send a one-line OSC 7 setup snippet to the remote shell on
@@ -60,6 +64,7 @@ const defaultSettings: AppSettings = {
     confirmOnClose: true,
     selectToCopy: true,
     autoCollapseSidebar: true,
+    privacyMode: false,
     followTerminalCwd: true,
     injectShellIntegration: true,
     showHiddenFiles: false,

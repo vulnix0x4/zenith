@@ -67,3 +67,19 @@ input:focus {
 input::placeholder {
   color: var(--text-dim);
 }
+
+/* Privacy Mode: blur any element marked with `data-private` while
+   `body.privacy-mode` is applied. Hovering a blurred element reveals it
+   for the user (not ideal on a shared screen — user is expected to not
+   hover sensitive fields while streaming). The blur uses a small radius
+   so text shape is still vaguely visible (confirms the field exists)
+   without being legible. */
+body.privacy-mode [data-private] {
+  filter: blur(6px);
+  transition: filter 120ms ease;
+  user-select: none;
+}
+
+body.privacy-mode [data-private]:hover {
+  filter: blur(0);
+}

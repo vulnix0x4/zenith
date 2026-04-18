@@ -207,7 +207,7 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
   return (
     <div className={styles.fileBrowser} onContextMenu={(e) => handleContextMenu(e, null)}>
       {/* Path bar */}
-      <div className={styles.pathBar}>
+      <div className={styles.pathBar} data-private>
         {breadcrumbs.map((seg, i) => (
           <span key={seg.path} style={{ display: 'flex', alignItems: 'center' }}>
             {i > 0 && <span className={styles.pathSep}>/</span>}
@@ -323,7 +323,7 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
                       }}
                     />
                   ) : (
-                    <span className={`${styles.fileName} ${nameClass}`}>
+                    <span className={`${styles.fileName} ${nameClass}`} data-private>
                       {entry.name}
                     </span>
                   )}
