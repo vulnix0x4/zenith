@@ -56,6 +56,7 @@ pub fn run() {
             save_credential,
             get_credential,
             delete_credential,
+            get_credential_storage_status,
             download_and_install_update,
         ])
         .run(tauri::generate_context!())

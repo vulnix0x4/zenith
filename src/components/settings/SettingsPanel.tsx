@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -6,14 +6,26 @@ import { useSessionStore } from '../../stores/sessionStore';
 import UpdatesSection from './UpdatesSection';
 import styles from './SettingsPanel.module.css';
 
+type StorageStatus = {
+  keyring_available: boolean;
+  in_memory_count: number;
+};
+
 export default function SettingsPanel() {
   const { settings, loaded, loadSettings, updateTerminal, updateMonitoring, updateGeneral } =
     useSettingsStore();
   const loadSessions = useSessionStore((s) => s.loadSessions);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
 
   useEffect(() => {
     if (!loaded) loadSettings();
   }, [loaded, loadSettings]);
+
+  useEffect(() => {
+    invoke<StorageStatus>('get_credential_storage_status')
+      .then(setStorageStatus)
+      .catch((err) => console.error('Failed to query credential storage status:', err));
+  }, []);
 
   const handleNumberChange = useCallback(
     (
@@ -70,6 +82,16 @@ export default function SettingsPanel() {
     <div className={styles.container}>
       {/* Updates */}
       <UpdatesSection />
+
+      {/* Credential storage warning (only when OS keyring is unavailable) */}
+      {storageStatus && !storageStatus.keyring_available && (
+        <div className={styles.warning} role="status">
+          <span className={styles.warningIcon} aria-hidden="true">!</span>
+          <span>
+            OS keyring not available on this system. Credentials are stored in memory only (lost on app exit).
+          </span>
+        </div>
+      )}
 
       {/* General Settings */}
       <div className={styles.section}>

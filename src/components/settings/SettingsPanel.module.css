@@ -165,3 +165,23 @@
   border-color: var(--cyan-dim);
   box-shadow: 0 0 8px var(--cyan-glow);
 }
+
+.warning {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 2px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--amber, #d4a853);
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.warningIcon {
+  flex-shrink: 0;
+  color: var(--amber, #d4a853);
+  font-family: var(--font-mono);
+}
