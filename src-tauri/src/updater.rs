@@ -127,7 +127,9 @@ async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
     // terminate the running instance, but has known race bugs — exiting the app
     // ourselves sidesteps that path.
     //
-    // CREATE_NO_WINDOW + DETACHED_PROCESS so the installer survives our exit.
+    // DETACHED_PROCESS + CREATE_NEW_PROCESS_GROUP so the installer survives
+    // our exit. We do NOT add CREATE_NO_WINDOW — the NSIS installer needs its
+    // own UI window.
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x0000_0008;
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
@@ -150,16 +152,17 @@ async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
 }
 #[cfg(target_os = "linux")]
 async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
-    // For AppImage: overwrite the currently-running binary file (Linux keeps
-    // the inode alive) and chmod +x. User relaunches to pick up the new version.
-    let current_exe = std::env::current_exe()
-        .map_err(|e| UpdateError::Spawn(format!("current_exe: {e}")))?;
-
-    // Only self-replace if we're running as an AppImage (APPIMAGE env var set).
-    let appimage_path = std::env::var("APPIMAGE")
-        .ok()
-        .map(std::path::PathBuf::from)
-        .unwrap_or(current_exe);
+    // Self-replace is only safe for AppImage builds. For .deb, .rpm, flatpak,
+    // dev builds, etc., we must NOT silently overwrite current_exe — that
+    // could corrupt the user's system package or a developer's build tree.
+    let appimage_path = std::env::var("APPIMAGE").map_err(|_| {
+        UpdateError::Spawn(
+            "Linux auto-install requires an AppImage build. \
+             Download the new version manually from GitHub."
+                .into(),
+        )
+    })?;
+    let appimage_path = std::path::PathBuf::from(appimage_path);
 
     tokio::fs::copy(path, &appimage_path).await?;
 
@@ -168,4 +171,47 @@ async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
     perms.set_mode(0o755);
     std::fs::set_permissions(&appimage_path, perms)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_filename;
+
+    #[test]
+    fn validate_filename_accepts_real_names() {
+        assert!(validate_filename("Zenith_0.2.0_x64-setup.exe").is_ok());
+        assert!(validate_filename("Zenith_0.2.0_aarch64.dmg").is_ok());
+        assert!(validate_filename("Zenith_0.2.0_amd64.AppImage").is_ok());
+    }
+
+    #[test]
+    fn validate_filename_rejects_empty() {
+        assert!(validate_filename("").is_err());
+    }
+
+    #[test]
+    fn validate_filename_rejects_path_separators() {
+        assert!(validate_filename("foo/bar.exe").is_err());
+        assert!(validate_filename("foo\\bar.exe").is_err());
+    }
+
+    #[test]
+    fn validate_filename_rejects_parent_dir() {
+        assert!(validate_filename("../evil.exe").is_err());
+        assert!(validate_filename("..").is_err());
+        assert!(validate_filename("foo..bar").is_err()); // conservative
+    }
+
+    #[test]
+    fn validate_filename_rejects_colon_and_null() {
+        assert!(validate_filename("C:\\evil.exe").is_err());
+        assert!(validate_filename("foo:stream").is_err());
+        assert!(validate_filename("foo\0bar").is_err());
+    }
+
+    #[test]
+    fn validate_filename_rejects_absolute() {
+        assert!(validate_filename("/etc/passwd").is_err());
+        // On Windows, "C:\\..." is absolute AND contains ':' — either rejection is fine
+    }
 }
