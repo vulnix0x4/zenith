@@ -57,7 +57,7 @@ export default function ActivityBar() {
   };
 
   return (
-    <div className={styles.activityBar}>
+    <div data-activity-bar className={styles.activityBar}>
       <div className={styles.logo}>Z</div>
       <div className={styles.topIcons}>
         {topItems.map(renderButton)}

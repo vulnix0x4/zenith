@@ -8,7 +8,7 @@ interface TitleBarProps {
 
 export default function TitleBar({ onSearchClick, onOpenUpdates }: TitleBarProps) {
   return (
-    <div className={styles.titleBar}>
+    <div data-title-bar className={styles.titleBar}>
       <div className={styles.logo}>ZENITH</div>
       <div className={styles.searchBar} onClick={onSearchClick}>
         <span className={styles.searchPlaceholder}>Search sessions, commands...</span>

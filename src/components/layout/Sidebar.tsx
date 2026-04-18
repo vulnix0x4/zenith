@@ -63,6 +63,7 @@ export default function Sidebar({ onConnect, connectedSessionIds, activeSessionI
   return (
     <div
       ref={sidebarRef}
+      data-sidebar-root
       className={`${styles.sidebar} ${!sidebarOpen ? styles.sidebarCollapsed : ''}`}
       style={sidebarOpen ? { width: `${sidebarWidth}px` } : undefined}
     >

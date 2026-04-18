@@ -357,24 +357,32 @@ export default function AppLayout() {
   const { sidebarOpen, toggleSidebar } = useLayoutStore();
   const autoCollapse = useSettingsStore((s) => s.settings.general.autoCollapseSidebar);
 
-  const anyConnected = useMemo(
-    () =>
-      tabs.some((t) => leavesOf(t.pane).some((l) => l.connected)),
-    [tabs]
-  );
-
+  // Document-level click-outside listener: whenever the user clicks anywhere
+  // that isn't the sidebar, activity bar, or title bar, collapse the sidebar
+  // if the autoCollapseSidebar setting is on. This replaces the old approach
+  // of gating on `anyConnected` + an onMouseDown handler on the terminal area
+  // div, which missed the case where the Settings panel was open with no
+  // active SSH sessions, and which didn't reliably bubble out of xterm.
   useEffect(() => {
-    if (anyConnected && autoCollapse !== false && sidebarOpen) {
-      toggleSidebar();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyConnected]);
+    if (autoCollapse === false || !sidebarOpen) return;
 
-  const handleTerminalAreaClick = useCallback(() => {
-    if (autoCollapse !== false && sidebarOpen && anyConnected) {
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      // Don't collapse when clicking the sidebar itself, the activity bar
+      // (so re-clicking the same icon to toggle works), or the title bar.
+      const sidebarEl = document.querySelector('[data-sidebar-root]');
+      const activityEl = document.querySelector('[data-activity-bar]');
+      const titleBarEl = document.querySelector('[data-title-bar]');
+      if (sidebarEl?.contains(target)) return;
+      if (activityEl?.contains(target)) return;
+      if (titleBarEl?.contains(target)) return;
       toggleSidebar();
-    }
-  }, [autoCollapse, sidebarOpen, anyConnected, toggleSidebar]);
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [autoCollapse, sidebarOpen, toggleSidebar]);
 
   // Global Cmd/Ctrl+K opens the command palette. We deliberately skip
   // interception when the user is in a form field or inside the xterm
@@ -505,7 +513,6 @@ export default function AppLayout() {
           />
           <div
             className={`${styles.terminalArea} ${tabs.length > 0 ? styles.terminalAreaActive : ''}`}
-            onMouseDown={handleTerminalAreaClick}
           >
             {tabs.length === 0 && (
               <div className={styles.placeholder}>
