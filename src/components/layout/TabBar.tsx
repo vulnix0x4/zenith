@@ -203,7 +203,7 @@ export default function TabBar({
                 }}
               />
             ) : (
-              <span className={isReconnecting ? styles.tabTitleItalic : ''} data-private>{title}</span>
+              <span className={isReconnecting ? styles.tabTitleItalic : ''}>{title}</span>
             )}
             {isDead && (
               <span

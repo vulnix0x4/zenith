@@ -121,7 +121,7 @@ export default function CommandPalette({
                 <span
                   className={`${styles.dot} ${isConnected ? styles.dotConnected : ''}`}
                 />
-                <span className={styles.resultName} data-private>{session.name}</span>
+                <span className={styles.resultName}>{session.name}</span>
                 <span className={styles.resultHost} data-private>
                   {session.username}@{session.hostname}
                 </span>
