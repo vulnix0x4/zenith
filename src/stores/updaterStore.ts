@@ -158,7 +158,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       // exit. On macOS/Linux, control returns here.
       const p = mapPlatform(platform());
       if (p === "windows") {
-        // The app will be terminated imminently; leave status as 'downloading'.
+        const { exit } = await import("@tauri-apps/plugin-process");
+        // Give the installer a moment to start before we exit
+        await new Promise((r) => setTimeout(r, 500));
+        await exit(0);
         return;
       }
       set({ status: "ready" });

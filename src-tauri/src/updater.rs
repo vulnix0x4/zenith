@@ -120,19 +120,52 @@ pub async fn download_and_install_update(
     Ok(())
 }
 
-// Platform-specific installer spawn — implemented in the next task.
 #[cfg(target_os = "windows")]
 async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
-    let _ = path;
-    unimplemented!("filled in next task")
+    // Detached spawn; the app will exit immediately after this returns so the
+    // installer can replace the locked binary. Tauri's NSIS template tries to
+    // terminate the running instance, but has known race bugs — exiting the app
+    // ourselves sidesteps that path.
+    //
+    // CREATE_NO_WINDOW + DETACHED_PROCESS so the installer survives our exit.
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+
+    std::process::Command::new(path)
+        .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+        .spawn()
+        .map_err(|e| UpdateError::Spawn(e.to_string()))?;
+    Ok(())
 }
 #[cfg(target_os = "macos")]
 async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
-    let _ = path;
-    unimplemented!("filled in next task")
+    // `open` mounts the DMG in Finder; user drags to /Applications. Not fully
+    // automatic — see design doc for rationale.
+    std::process::Command::new("open")
+        .arg(path)
+        .spawn()
+        .map_err(|e| UpdateError::Spawn(e.to_string()))?;
+    Ok(())
 }
 #[cfg(target_os = "linux")]
 async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
-    let _ = path;
-    unimplemented!("filled in next task")
+    // For AppImage: overwrite the currently-running binary file (Linux keeps
+    // the inode alive) and chmod +x. User relaunches to pick up the new version.
+    let current_exe = std::env::current_exe()
+        .map_err(|e| UpdateError::Spawn(format!("current_exe: {e}")))?;
+
+    // Only self-replace if we're running as an AppImage (APPIMAGE env var set).
+    let appimage_path = std::env::var("APPIMAGE")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .unwrap_or(current_exe);
+
+    tokio::fs::copy(path, &appimage_path).await?;
+
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(&appimage_path)?.permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&appimage_path, perms)?;
+    Ok(())
 }
