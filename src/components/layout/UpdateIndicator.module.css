@@ -4,18 +4,23 @@
   gap: 6px;
   padding: 4px 10px;
   margin-right: 8px;
-  border: 1px solid var(--accent, #4a9eff);
+  border: 1px solid var(--purple);
   background: transparent;
-  color: var(--accent, #4a9eff);
+  color: var(--purple);
   border-radius: 999px;
   font-size: 12px;
-  cursor: pointer;
+  -webkit-app-region: no-drag;
   animation: fadeIn 180ms ease-out;
+}
+.pillButton {
+  composes: pill;
+  cursor: pointer;
 }
 .pillReady {
   composes: pill;
-  background: var(--accent, #4a9eff);
+  background: var(--purple);
   color: #fff;
+  cursor: pointer;
 }
 .dot {
   width: 6px;

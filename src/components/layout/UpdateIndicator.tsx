@@ -15,11 +15,11 @@ export default function UpdateIndicator({ onOpenSettings }: Props) {
   if (status === "available") {
     return (
       <button
-        className={styles.pill}
+        className={styles.pillButton}
         onClick={onOpenSettings}
         title="A new version of Zenith is available"
       >
-        <span className={styles.dot} />
+        <span className={styles.dot} aria-hidden="true" />
         Update available
       </button>
     );
