@@ -57,6 +57,21 @@ const mapArch = (a: string): Arch | null => {
 // state — keeping it out of the store saves a needless subscriber wakeup.
 let lastSelectedAsset: GithubAsset | null = null;
 
+// Cache GitHub API responses for silent (boot-time) checks to avoid
+// burning through the 60 req/hr unauthenticated rate limit when the
+// dev-loop reopens the app rapidly.
+interface CachedResponse {
+  at: number; // Date.now()
+  data: {
+    tag_name: string;
+    body: string | null;
+    html_url: string;
+    assets: GithubAsset[];
+  };
+}
+let cachedResponse: CachedResponse | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   status: "idle",
   currentVersion: import.meta.env.VITE_APP_VERSION,
@@ -73,24 +88,42 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     set({ status: "checking", error: null, upToDate: false });
 
     try {
-      const res = await fetch(RELEASES_URL, {
-        headers: { Accept: "application/vnd.github+json" },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
-      const data = (await res.json()) as {
-        tag_name: string;
-        name?: string;
-        body?: string;
-        html_url: string;
-        assets: GithubAsset[];
-      };
+      // Manual "Check for updates" always wants a fresh result.
+      if (!silent) cachedResponse = null;
+
+      let data: CachedResponse["data"];
       if (
-        typeof data.tag_name !== "string" ||
-        typeof data.html_url !== "string" ||
-        !Array.isArray(data.assets)
+        cachedResponse &&
+        Date.now() - cachedResponse.at < CACHE_TTL_MS
       ) {
-        throw new Error("Unexpected GitHub response shape");
+        data = cachedResponse.data;
+      } else {
+        const res = await fetch(RELEASES_URL, {
+          headers: { Accept: "application/vnd.github+json" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
+        const raw = (await res.json()) as {
+          tag_name: string;
+          name?: string;
+          body?: string;
+          html_url: string;
+          assets: GithubAsset[];
+        };
+        if (
+          typeof raw.tag_name !== "string" ||
+          typeof raw.html_url !== "string" ||
+          !Array.isArray(raw.assets)
+        ) {
+          throw new Error("Unexpected GitHub response shape");
+        }
+        data = {
+          tag_name: raw.tag_name,
+          body: raw.body ?? null,
+          html_url: raw.html_url,
+          assets: raw.assets,
+        };
+        cachedResponse = { at: Date.now(), data };
       }
 
       const local = get().currentVersion;
@@ -130,7 +163,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       set({
         status: "available",
         latestVersion: remote,
-        releaseNotes: data.body ?? null,
+        releaseNotes: data.body,
         releaseUrl: data.html_url,
         error: null,
       });
@@ -194,6 +227,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 // For testing / introspection.
 export function _resetUpdaterTestState() {
   lastSelectedAsset = null;
+  cachedResponse = null;
   useUpdaterStore.setState({
     status: "idle",
     latestVersion: null,

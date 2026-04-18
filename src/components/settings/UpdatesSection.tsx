@@ -35,7 +35,7 @@ export default function UpdatesSection() {
         </div>
       )}
 
-      {releaseNotes && (status === 'available' || status === 'ready') && (
+      {releaseNotes && releaseNotes.trim() && (status === 'available' || status === 'ready') && (
         <div className={styles.notes}>
           <div className={styles.notesTitle}>Release notes</div>
           <pre className={styles.notesBody}>{releaseNotes}</pre>
