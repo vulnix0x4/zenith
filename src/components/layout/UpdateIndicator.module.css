@@ -1,0 +1,29 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-right: 8px;
+  border: 1px solid var(--accent, #4a9eff);
+  background: transparent;
+  color: var(--accent, #4a9eff);
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  animation: fadeIn 180ms ease-out;
+}
+.pillReady {
+  composes: pill;
+  background: var(--accent, #4a9eff);
+  color: #fff;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
