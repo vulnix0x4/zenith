@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -16,17 +16,33 @@ struct ConnectionEntry {
     handle: SharedSshHandle,
 }
 
+/// Shared, readable view of which sessions are currently connected.
+/// Handed to subsystems (e.g. monitoring) that need to probe liveness
+/// without reaching into the full connections map.
+pub type ActiveSessionIds = Arc<Mutex<HashSet<String>>>;
+
 /// Manages all active SSH sessions.
 /// Thread-safe: the inner map is behind a tokio Mutex.
 pub struct SshManager {
     connections: Arc<Mutex<HashMap<String, ConnectionEntry>>>,
+    /// Mirror of `connections.keys()` exposed via [`Self::active_ids`] so
+    /// subsystems can check "is this session still connected?" without
+    /// needing access to the private `ConnectionEntry` type.
+    active_ids: ActiveSessionIds,
 }
 
 impl SshManager {
     pub fn new() -> Self {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
+            active_ids: Arc::new(Mutex::new(HashSet::new())),
         }
+    }
+
+    /// Return a shared handle to the set of currently connected session IDs.
+    /// Consumers should acquire the lock briefly just to probe membership.
+    pub fn active_ids(&self) -> ActiveSessionIds {
+        Arc::clone(&self.active_ids)
     }
 
     /// Connect to a remote host and start the session event loop.
@@ -64,16 +80,29 @@ impl SshManager {
                 },
             );
         }
+        // Mirror the id into the active set so external subsystems (monitoring)
+        // can cheaply ask "is this session still connected?".
+        {
+            let mut ids = self.active_ids.lock().await;
+            ids.insert(session_id.clone());
+        }
 
         // Spawn the event loop on a background task.
         // When it exits (disconnect/error), we clean up the entry.
         let connections = Arc::clone(&self.connections);
+        let active_ids = Arc::clone(&self.active_ids);
         tokio::spawn(async move {
             conn.run_loop(event_tx, write_rx, resize_rx).await;
 
-            // Remove from the map once the loop exits
-            let mut conns = connections.lock().await;
-            conns.remove(&session_id);
+            // Remove from both the map and the active-id mirror once the loop exits.
+            {
+                let mut conns = connections.lock().await;
+                conns.remove(&session_id);
+            }
+            {
+                let mut ids = active_ids.lock().await;
+                ids.remove(&session_id);
+            }
         });
 
         Ok(())
@@ -122,10 +151,16 @@ impl SshManager {
     /// Disconnect an active session by removing it from the map.
     /// Dropping the senders will cause the event loop to exit.
     pub async fn disconnect(&self, session_id: &str) -> Result<()> {
-        let mut conns = self.connections.lock().await;
-        conns
-            .remove(session_id)
-            .context("Session not found")?;
+        {
+            let mut conns = self.connections.lock().await;
+            conns
+                .remove(session_id)
+                .context("Session not found")?;
+        }
+        {
+            let mut ids = self.active_ids.lock().await;
+            ids.remove(session_id);
+        }
 
         Ok(())
     }

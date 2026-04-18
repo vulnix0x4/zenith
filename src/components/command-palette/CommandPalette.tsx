@@ -100,7 +100,11 @@ export default function CommandPalette({
         </div>
         <div className={styles.results}>
           {filtered.length === 0 && (
-            <div className={styles.empty}>No sessions found</div>
+            <div className={styles.empty}>
+              {query
+                ? `No matches for "${query}"`
+                : 'No sessions yet. Press + in the sidebar to add one.'}
+            </div>
           )}
           {filtered.map((session, index) => {
             const isConnected = connectedSessionIds.has(session.id);

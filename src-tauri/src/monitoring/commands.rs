@@ -18,9 +18,10 @@ pub async fn start_monitoring(
         .get_handle(&session_id)
         .await
         .map_err(|e| format!("Cannot start monitoring: {}", e))?;
+    let active_ids = ssh_manager.active_ids();
 
     monitor_manager
-        .start(session_id, handle, on_event)
+        .start(session_id, handle, active_ids, on_event)
         .await;
 
     Ok(())
