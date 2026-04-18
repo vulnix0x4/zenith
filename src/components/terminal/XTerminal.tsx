@@ -56,6 +56,25 @@ export default function XTerminal({ onData, onResize, onCwdChange, terminalRef }
     // Fit after open
     fitAddon.fit();
 
+    // Large-paste guard. Pasting a multi-megabyte blob or a script with
+    // dozens of lines into a remote shell commonly ends in tears -- the
+    // shell interprets each newline as a command and the user can't
+    // interrupt mid-stream. Intercept term.paste and prompt for confirmation
+    // above generous thresholds. (Our own Ctrl+V handler below also routes
+    // through this, as does xterm's native bracketed-paste handling.)
+    const origPaste = terminal.paste.bind(terminal);
+    terminal.paste = (data: string) => {
+      const newlineCount = (data.match(/\n/g) || []).length;
+      if (data.length > 5000 || newlineCount > 10) {
+        const ok = window.confirm(
+          `Paste ${data.length} characters / ${newlineCount} lines? ` +
+            `This may overwhelm the remote shell.`
+        );
+        if (!ok) return;
+      }
+      origPaste(data);
+    };
+
     // Store ref
     termRef.current = terminal;
     if (terminalRef) {

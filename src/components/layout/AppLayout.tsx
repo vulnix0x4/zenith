@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useMemo, type MutableRefObject } from
 import { createPortal } from 'react-dom';
 import { v4 as uuid } from 'uuid';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import type { Terminal } from '@xterm/xterm';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
@@ -351,16 +353,64 @@ export default function AppLayout() {
     }
   }, [autoCollapse, sidebarOpen, anyConnected, toggleSidebar]);
 
-  // Global Cmd/Ctrl+K shortcut
+  // Global Cmd/Ctrl+K opens the command palette. We deliberately skip
+  // interception when the user is in a form field or inside the xterm
+  // viewport: the terminal binds Ctrl+K itself (readline "kill to end of
+  // line") and swallowing it from under the shell would surprise users.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setShowPalette((v) => !v);
+      if (!((e.metaKey || e.ctrlKey) && e.key === 'k')) return;
+
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        const tag = active.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) return;
+        // xterm's focused element lives inside a .xterm container; bail if
+        // the terminal owns the focus so its own Ctrl+K binding wins.
+        if (active.closest('.xterm')) return;
       }
+
+      e.preventDefault();
+      setShowPalette((v) => !v);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Confirm-on-close: intercept the OS close request (Alt+F4 / Cmd+Q / red X)
+  // when the user has active tabs and the "Confirm on Close" setting is on.
+  // Tauri's onCloseRequested fires before the window is destroyed so we can
+  // call event.preventDefault() while the confirm dialog resolves.
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let cancelled = false;
+    const unlistenPromise = win.onCloseRequested(async (event) => {
+      const { confirmOnClose } = useSettingsStore.getState().settings.general;
+      if (!confirmOnClose) return; // allow close
+
+      // Count tabs as a simple proxy for "active work". The confirm-on-close
+      // toggle implies the user wants to be asked about any tab loss, and
+      // counting connected-only leaves would miss tabs that are mid-reconnect.
+      const tabCount = useTabStore.getState().tabs.length;
+      if (tabCount === 0) return; // nothing to lose
+
+      event.preventDefault();
+      const confirmed = await confirm(
+        `You have ${tabCount} open tab${tabCount === 1 ? '' : 's'}. Close anyway?`,
+        { title: 'Close Zenith?', kind: 'warning' }
+      );
+      if (confirmed && !cancelled) {
+        // Drop our own listener before re-calling close so the handler
+        // doesn't intercept the request a second time and loop forever.
+        const fn = await unlistenPromise;
+        fn();
+        await win.close();
+      }
+    });
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((fn) => fn());
+    };
   }, []);
 
   // ---- Persistent xterm rendering via portals ---------------------------
