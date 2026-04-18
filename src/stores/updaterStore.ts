@@ -47,6 +47,8 @@ const mapArch = (a: string): Arch | null => {
   return null;
 };
 
+// Stored outside Zustand state because it's an opaque handle, not UI
+// state — keeping it out of the store saves a needless subscriber wakeup.
 let lastSelectedAsset: GithubAsset | null = null;
 
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
@@ -66,6 +68,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     try {
       const res = await fetch(RELEASES_URL, {
         headers: { Accept: "application/vnd.github+json" },
+        signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
       const data = (await res.json()) as {
@@ -75,6 +78,13 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         html_url: string;
         assets: GithubAsset[];
       };
+      if (
+        typeof data.tag_name !== "string" ||
+        typeof data.html_url !== "string" ||
+        !Array.isArray(data.assets)
+      ) {
+        throw new Error("Unexpected GitHub response shape");
+      }
 
       const local = get().currentVersion;
       const remote = data.tag_name;
@@ -118,6 +128,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         error: null,
       });
     } catch (err) {
+      console.error("updater:", err);
       if (silent) {
         set({ status: "idle" });
         return;
@@ -164,7 +175,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     }
   },
 
-  dismissError: () => set({ status: "idle", error: null }),
+  dismissError: () => {
+    if (get().status !== "error") return;
+    set({ status: "idle", error: null });
+  },
 }));
 
 // For testing / introspection.
