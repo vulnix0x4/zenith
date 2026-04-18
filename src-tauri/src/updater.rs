@@ -16,7 +16,16 @@ fn validate_filename(filename: &str) -> Result<(), UpdateError> {
 }
 
 fn is_allowed_host(host: Option<&str>) -> bool {
-    matches!(host, Some("github.com") | Some("objects.githubusercontent.com"))
+    match host {
+        Some("github.com") => true,
+        // All GitHub release-asset CDN hosts are subdomains of
+        // githubusercontent.com (e.g. objects.githubusercontent.com,
+        // release-assets.githubusercontent.com, raw.githubusercontent.com).
+        // Matching the whole suffix keeps the allowlist robust against
+        // GitHub rotating the specific CDN hostname.
+        Some(h) => h == "githubusercontent.com" || h.ends_with(".githubusercontent.com"),
+        None => false,
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -56,9 +65,10 @@ async fn download_to_temp(url: &str, filename: &str) -> Result<PathBuf, UpdateEr
         let client = reqwest::Client::builder()
             .user_agent(concat!("Zenith/", env!("CARGO_PKG_VERSION")))
             .redirect(reqwest::redirect::Policy::custom(|attempt| {
-                match attempt.url().host_str() {
-                    Some("github.com") | Some("objects.githubusercontent.com") => attempt.follow(),
-                    _ => attempt.stop(),
+                if is_allowed_host(attempt.url().host_str()) {
+                    attempt.follow()
+                } else {
+                    attempt.stop()
                 }
             }))
             .build()
@@ -175,7 +185,28 @@ async fn spawn_installer(path: &std::path::Path) -> Result<(), UpdateError> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_filename;
+    use super::{is_allowed_host, validate_filename};
+
+    #[test]
+    fn is_allowed_host_accepts_github_and_usercontent_subdomains() {
+        assert!(is_allowed_host(Some("github.com")));
+        assert!(is_allowed_host(Some("objects.githubusercontent.com")));
+        assert!(is_allowed_host(Some("release-assets.githubusercontent.com")));
+        assert!(is_allowed_host(Some("raw.githubusercontent.com")));
+        assert!(is_allowed_host(Some("githubusercontent.com")));
+    }
+
+    #[test]
+    fn is_allowed_host_rejects_everything_else() {
+        assert!(!is_allowed_host(None));
+        assert!(!is_allowed_host(Some("")));
+        assert!(!is_allowed_host(Some("evil.com")));
+        assert!(!is_allowed_host(Some("github.com.evil.com")));
+        // Suffix match must be anchored at a dot so that e.g. "evilgithubusercontent.com"
+        // does NOT match.
+        assert!(!is_allowed_host(Some("evilgithubusercontent.com")));
+        assert!(!is_allowed_host(Some("s3.amazonaws.com")));
+    }
 
     #[test]
     fn validate_filename_accepts_real_names() {
