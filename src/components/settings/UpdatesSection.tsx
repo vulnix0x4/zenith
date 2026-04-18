@@ -11,6 +11,7 @@ export default function UpdatesSection() {
     releaseNotes,
     releaseUrl,
     error,
+    upToDate,
     checkForUpdate,
     downloadAndInstall,
     dismissError,
@@ -43,6 +44,12 @@ export default function UpdatesSection() {
 
       {status === 'downloading' && (
         <div className={styles.row}>Downloading…</div>
+      )}
+
+      {upToDate && status === 'idle' && (
+        <div className={styles.upToDate}>
+          You&apos;re on the latest version.
+        </div>
       )}
 
       {status === 'error' && error && (

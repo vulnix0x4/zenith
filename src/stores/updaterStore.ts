@@ -25,6 +25,12 @@ interface UpdaterState {
   releaseNotes: string | null;
   releaseUrl: string | null;
   error: string | null;
+  /**
+   * Set to true after a non-silent check that confirms the installed
+   * version is the latest. Cleared on the next check. Drives a
+   * transient "You're on the latest version" message in the UI.
+   */
+  upToDate: boolean;
 
   checkForUpdate: (opts?: { silent?: boolean }) => Promise<void>;
   downloadAndInstall: () => Promise<void>;
@@ -58,12 +64,13 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   releaseNotes: null,
   releaseUrl: null,
   error: null,
+  upToDate: false,
 
   checkForUpdate: async (opts) => {
     const silent = opts?.silent ?? false;
     if (get().status === "checking" || get().status === "downloading") return;
 
-    set({ status: "checking", error: null });
+    set({ status: "checking", error: null, upToDate: false });
 
     try {
       const res = await fetch(RELEASES_URL, {
@@ -90,7 +97,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       const remote = data.tag_name;
 
       if (!isNewerVersion(remote, local)) {
-        set({ status: "idle" });
+        set({ status: "idle", upToDate: !silent });
         return;
       }
 
@@ -193,5 +200,6 @@ export function _resetUpdaterTestState() {
     releaseNotes: null,
     releaseUrl: null,
     error: null,
+    upToDate: false,
   });
 }

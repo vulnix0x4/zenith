@@ -29,6 +29,15 @@
   color: var(--text-secondary);
   margin: 6px 0;
 }
+.upToDate {
+  font-size: 12px;
+  color: var(--cyan);
+  padding: 8px;
+  border-radius: 4px;
+  background: var(--cyan-glow);
+  border: 1px solid var(--cyan-dim);
+  margin: 8px 0;
+}
 .errorBox {
   padding: 8px;
   border-radius: 4px;
