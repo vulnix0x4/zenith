@@ -1,5 +1,6 @@
 .titleBar {
-  height: var(--titlebar-height);
+  height: var(--titlebar-height, 38px);
+  flex-shrink: 0;
   background: var(--bg-deep);
   display: flex;
   align-items: center;

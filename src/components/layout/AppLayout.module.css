@@ -6,13 +6,6 @@
   overflow: hidden;
 }
 
-.dragStrip {
-  height: 6px;
-  -webkit-app-region: drag;
-  background: var(--bg-deep);
-  flex-shrink: 0;
-}
-
 .body {
   display: flex;
   flex: 1;
