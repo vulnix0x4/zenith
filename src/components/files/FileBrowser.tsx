@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSftp, type FileEntry } from '../../hooks/useSftp';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { SftpTransferIndicator } from './SftpTransferIndicator';
 import styles from './FileBrowser.module.css';
 
 interface FileBrowserProps {
@@ -285,41 +286,62 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
         <div className={styles.fileList}>
           {entries
             .filter((entry) => showHidden || !entry.name.startsWith('.'))
-            .map((entry) => (
-            <div
-              key={entry.path}
-              className={styles.fileRow}
-              onClick={() => handleRowClick(entry)}
-              onContextMenu={(e) => handleContextMenu(e, entry)}
-            >
-              <span className={styles.fileIcon}>{entry.isDir ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}</span>
-              {renamingPath === entry.path ? (
-                <input
-                  ref={renameInputRef}
-                  className={styles.renameInput}
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitRename();
-                    if (e.key === 'Escape') setRenamingPath(null);
-                  }}
-                />
-              ) : (
-                <span className={`${styles.fileName} ${entry.isDir ? styles.dirName : styles.regularName}`}>
-                  {entry.name}
-                </span>
-              )}
-              {!entry.isDir && (
-                <span className={styles.fileMeta}>{formatSize(entry.size)}</span>
-              )}
-            </div>
-          ))}
+            .map((entry) => {
+              // Symlinks get a dedicated arrow glyph + styling so they're
+              // visually distinct from regular files / dirs. We don't
+              // resolve the target -- that'd need another SFTP round-trip
+              // per entry and isn't justified for this level of polish.
+              const isSymlink = entry.fileType === 'symlink';
+              const nameClass = isSymlink
+                ? styles.symlinkName
+                : entry.isDir
+                  ? styles.dirName
+                  : styles.regularName;
+              const icon = isSymlink
+                ? '\u2937' // downwards arrow with tip rightwards -- reads as "link"
+                : entry.isDir
+                  ? '\uD83D\uDCC1'
+                  : '\uD83D\uDCC4';
+              return (
+                <div
+                  key={entry.path}
+                  className={styles.fileRow}
+                  onClick={() => handleRowClick(entry)}
+                  onContextMenu={(e) => handleContextMenu(e, entry)}
+                >
+                  <span className={styles.fileIcon}>{icon}</span>
+                  {renamingPath === entry.path ? (
+                    <input
+                      ref={renameInputRef}
+                      className={styles.renameInput}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename();
+                        if (e.key === 'Escape') setRenamingPath(null);
+                      }}
+                    />
+                  ) : (
+                    <span className={`${styles.fileName} ${nameClass}`}>
+                      {entry.name}
+                    </span>
+                  )}
+                  {!entry.isDir && !isSymlink && (
+                    <span className={styles.fileMeta}>{formatSize(entry.size)}</span>
+                  )}
+                </div>
+              );
+            })}
           {!loading && entries.length === 0 && initialized && (
             <div className={styles.loading}>Empty directory</div>
           )}
         </div>
       )}
+
+      {/* In-flight / recently-finished transfers. Renders nothing when the
+          store's `transfers` list is empty, so has zero cost at rest. */}
+      <SftpTransferIndicator />
 
       {/* Context menu */}
       {contextMenu && (

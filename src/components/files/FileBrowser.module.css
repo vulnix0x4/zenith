@@ -149,6 +149,14 @@
   color: var(--text-primary);
 }
 
+/* Symlinks get a dedicated cyan color to make them readable at a glance
+   against both the purple directory rows and the neutral file rows.
+   Italic also helps when users are colorblind or the theme gets swapped. */
+.symlinkName {
+  color: var(--cyan);
+  font-style: italic;
+}
+
 .fileMeta {
   font-size: 10px;
   color: var(--text-dim);
@@ -274,4 +282,63 @@
   padding: 16px;
   text-align: center;
   line-height: 1.6;
+}
+
+/* Transfer indicator -- pinned below the file list while any uploads /
+   downloads are active or just-finished. Height grows with the transfer
+   list but is bounded by max-height so a flurry of transfers doesn't eat
+   the whole panel. */
+.transferList {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.transferRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.transferActive {
+  color: var(--cyan);
+  /* Subtle pulse so the eye is drawn to in-flight transfers without being
+     annoying. Same keyframes as the loading dots so we reuse `pulse`. */
+  animation: pulse 1.6s infinite ease-in-out;
+}
+
+.transferDone {
+  color: var(--text-secondary);
+}
+
+.transferError {
+  color: var(--status-error);
+}
+
+.transferVerb {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.transferName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.transferSize {
+  flex-shrink: 0;
+  color: var(--text-dim);
 }

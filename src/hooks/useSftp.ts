@@ -1,6 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
+import { useSftpStore } from '../stores/sftpStore';
+
+/** Raw kind of a remote filesystem entry as the Rust backend reports it.
+ *  "other" catches fifos, sockets, devices -- rare on paths users browse. */
+export type FileKind = 'directory' | 'file' | 'symlink' | 'other';
 
 export interface FileEntry {
   name: string;
@@ -9,6 +14,21 @@ export interface FileEntry {
   size: number;
   modified: string | null;
   permissions: string | null;
+  /** Richer than `isDir` because it distinguishes symlinks, which show up
+   *  as neither "file" nor "directory" via the mode bits alone. */
+  fileType: FileKind;
+}
+
+/** Backend returns this exact string in the error message when an upload
+ *  is refused because the remote path already exists. Must stay in sync
+ *  with `FILE_EXISTS_MARKER` in `src-tauri/src/sftp/errors.rs`. */
+const FILE_EXISTS_MARKER = 'FILE_EXISTS';
+
+/** Extract the last path segment, treating both `/` and `\` as separators
+ *  so we degrade gracefully on Windows-sourced paths. */
+function basename(p: string): string {
+  const m = p.replace(/[\\/]+$/, '').match(/[^\\/]+$/);
+  return m ? m[0] : p;
 }
 
 export function useSftp(sessionId: string | null) {
@@ -17,6 +37,9 @@ export function useSftp(sessionId: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const initializedRef = useRef<Set<string>>(new Set());
+  const startTransfer = useSftpStore((s) => s.startTransfer);
+  const finishTransfer = useSftpStore((s) => s.finishTransfer);
+  const errorTransfer = useSftpStore((s) => s.errorTransfer);
 
   const ensureOpen = useCallback(
     async (sid: string) => {
@@ -76,17 +99,74 @@ export function useSftp(sessionId: string | null) {
         title: 'Save file as',
       });
       if (!localPath) return;
+      // Look up size from the current listing so the indicator can show a
+      // readable byte count without another round-trip. Best-effort: zero is
+      // shown as "--" by the formatter.
+      const listed = entries.find((e) => e.path === remotePath);
+      const tid = startTransfer({
+        filename: fileName,
+        direction: 'down',
+        size: listed?.size,
+      });
       try {
         await invoke('sftp_download', {
           sessionId,
           remotePath,
           localPath,
         });
+        finishTransfer(tid);
       } catch (e) {
-        setError(`Download failed: ${String(e)}`);
+        const msg = String(e);
+        errorTransfer(tid, msg);
+        setError(`Download failed: ${msg}`);
       }
     },
-    [sessionId]
+    [sessionId, entries, startTransfer, finishTransfer, errorTransfer]
+  );
+
+  /** Core upload step used both on first attempt and on retry-with-overwrite.
+   *  Kept as an inner helper so the overwrite confirmation flow doesn't have
+   *  to duplicate the refresh / error-plumbing boilerplate.
+   *
+   *  We don't try to pre-stat the local file for a byte count -- the
+   *  indicator just shows "Uploading <name>" without a size on uploads. */
+  const doUpload = useCallback(
+    async (
+      localPath: string,
+      remotePath: string,
+      fileName: string,
+      overwrite: boolean
+    ): Promise<boolean> => {
+      const tid = startTransfer({
+        filename: fileName,
+        direction: 'up',
+      });
+      try {
+        await invoke('sftp_upload', {
+          sessionId,
+          localPath,
+          remotePath,
+          overwrite,
+        });
+        finishTransfer(tid);
+        return true;
+      } catch (e) {
+        const msg = String(e);
+        // File-exists is an expected refusal, not a hard error. Clean up the
+        // transfer silently and let the caller decide whether to prompt.
+        if (msg.includes(FILE_EXISTS_MARKER)) {
+          // Remove transfer entry immediately since we'll either retry
+          // (creating a new one) or cancel -- either way the half-started
+          // attempt shouldn't linger in the indicator.
+          useSftpStore.getState().removeTransfer(tid);
+          throw new Error(FILE_EXISTS_MARKER);
+        }
+        errorTransfer(tid, msg);
+        setError(`Upload failed: ${msg}`);
+        return false;
+      }
+    },
+    [sessionId, startTransfer, finishTransfer, errorTransfer]
   );
 
   const upload = useCallback(async () => {
@@ -97,22 +177,39 @@ export function useSftp(sessionId: string | null) {
     });
     if (!selected) return;
     const localPath = typeof selected === 'string' ? selected : selected;
-    const fileName = String(localPath).split('/').pop() ?? 'upload';
+    const fileName = basename(String(localPath));
     const remotePath = currentPath.endsWith('/')
       ? `${currentPath}${fileName}`
       : `${currentPath}/${fileName}`;
+
     try {
-      await invoke('sftp_upload', {
-        sessionId,
-        localPath: String(localPath),
-        remotePath,
-      });
-      // Refresh listing
-      await navigateTo(currentPath);
+      const ok = await doUpload(String(localPath), remotePath, fileName, false);
+      if (ok) await navigateTo(currentPath);
     } catch (e) {
-      setError(`Upload failed: ${String(e)}`);
+      // First attempt was refused because remote file exists. Ask the user
+      // whether to overwrite. window.confirm is intentional: a fancy modal
+      // is overkill here, and a native prompt is unambiguous.
+      if (e instanceof Error && e.message === FILE_EXISTS_MARKER) {
+        const confirmed = window.confirm(
+          `"${fileName}" already exists. Overwrite?`
+        );
+        if (!confirmed) return;
+        try {
+          const ok = await doUpload(
+            String(localPath),
+            remotePath,
+            fileName,
+            true
+          );
+          if (ok) await navigateTo(currentPath);
+        } catch {
+          // If the retry somehow also throws FILE_EXISTS, treat as a hard
+          // error -- shouldn't happen, but swallow gracefully.
+          setError('Upload failed: remote file still reports as existing');
+        }
+      }
     }
-  }, [sessionId, currentPath, navigateTo]);
+  }, [sessionId, currentPath, navigateTo, doUpload]);
 
   const deleteEntry = useCallback(
     async (path: string) => {
