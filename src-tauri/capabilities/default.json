@@ -8,6 +8,7 @@
     "opener:default",
     "dialog:default",
     "os:default",
-    "process:allow-exit"
+    "process:allow-exit",
+    "window-state:default"
   ]
 }
