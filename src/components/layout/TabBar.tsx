@@ -3,6 +3,7 @@ import {
   useTabStore,
   leavesOf,
   tabTitleFor,
+  type ConnectionState,
   type Tab,
 } from '../../stores/tabStore';
 import { useSessionStore } from '../../stores/sessionStore';
@@ -12,6 +13,9 @@ interface TabBarProps {
   onNewTab: () => void;
   onCloseTab: (id: string) => void;
   onSearchClick?: () => void;
+  /** Invoked when the user clicks a dead / failed tab's reconnect glyph.
+   *  Parent hook is responsible for replaying stored credentials. */
+  onReconnectTab?: (tabId: string) => void;
   /** Called when the user starts dragging a tab. Parent owns the global
    *  drag state so the drop overlay in the terminal area can react. */
   onTabDragStart?: (tabId: string) => void;
@@ -24,23 +28,50 @@ interface ContextMenuState {
   tabId: string;
 }
 
-/** A tab is "connected" when any of its leaves are connected, and shows
- *  activity when any non-focused leaf has activity. Status indicator is the
- *  union view across the whole tab. */
-function tabConnectionState(tab: Tab): { connected: boolean; hasActivity: boolean } {
-  let connected = false;
+/** Aggregate a tab's per-leaf status into the single value the tab chrome
+ *  renders. Activity is the union view; the `state` is the worst-case
+ *  across the tab in this priority order:
+ *    connected  >  reconnecting  >  disconnected  >  failed
+ *  i.e. one healthy leaf makes the tab look healthy; everything dead
+ *  shows the failed glyph. Tracking `hasFailedLeaf` / `hasDisconnectedLeaf`
+ *  lets the click handler decide whether to fire the reconnect callback. */
+function tabAggregateState(tab: Tab): {
+  state: ConnectionState;
+  hasActivity: boolean;
+  anyDead: boolean;
+} {
+  let anyConnected = false;
+  let anyReconnecting = false;
+  let anyFailed = false;
   let hasActivity = false;
   for (const l of leavesOf(tab.pane)) {
-    if (l.connected) connected = true;
     if (l.hasActivity) hasActivity = true;
+    switch (l.connectionState) {
+      case 'connected':
+        anyConnected = true;
+        break;
+      case 'reconnecting':
+        anyReconnecting = true;
+        break;
+      case 'failed':
+        anyFailed = true;
+        break;
+    }
   }
-  return { connected, hasActivity };
+  let state: ConnectionState;
+  if (anyConnected) state = 'connected';
+  else if (anyReconnecting) state = 'reconnecting';
+  else if (anyFailed) state = 'failed';
+  else state = 'disconnected';
+  const anyDead = !anyConnected && !anyReconnecting;
+  return { state, hasActivity, anyDead };
 }
 
 export default function TabBar({
   onNewTab,
   onCloseTab,
   onSearchClick,
+  onReconnectTab,
   onTabDragStart,
   onTabDragEnd,
 }: TabBarProps) {
@@ -109,13 +140,17 @@ export default function TabBar({
   return (
     <div className={styles.tabBar}>
       {tabs.map((tab) => {
-        const { connected, hasActivity } = tabConnectionState(tab);
+        const { state, hasActivity, anyDead } = tabAggregateState(tab);
         const title = tabTitleFor(tab);
+        const isReconnecting = state === 'reconnecting';
+        const isDead = state === 'disconnected' || state === 'failed';
         return (
           <button
             key={tab.id}
             className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ''} ${
               hasActivity && tab.id !== activeTabId ? styles.hasActivity : ''
+            } ${isReconnecting ? styles.tabReconnecting : ''} ${
+              isDead ? styles.tabDead : ''
             }`}
             draggable
             onDragStart={(e) => {
@@ -127,7 +162,13 @@ export default function TabBar({
               onTabDragStart?.(tab.id);
             }}
             onDragEnd={() => onTabDragEnd?.()}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              // A click on a dead tab is interpreted as "reconnect me" --
+              // much nicer than making the user find a menu entry. For
+              // healthy tabs this just activates.
+              setActiveTab(tab.id);
+              if (anyDead) onReconnectTab?.(tab.id);
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               setActiveTab(tab.id);
@@ -140,7 +181,11 @@ export default function TabBar({
           >
             <span
               className={`${styles.statusDot} ${
-                connected ? styles.statusConnected : styles.statusDisconnected
+                state === 'connected'
+                  ? styles.statusConnected
+                  : isReconnecting
+                    ? styles.statusReconnecting
+                    : styles.statusDisconnected
               }`}
             />
             {renamingTabId === tab.id ? (
@@ -158,7 +203,20 @@ export default function TabBar({
                 }}
               />
             ) : (
-              <span>{title}</span>
+              <span className={isReconnecting ? styles.tabTitleItalic : ''}>{title}</span>
+            )}
+            {isDead && (
+              <span
+                className={styles.reconnectGlyph}
+                title="Click to reconnect"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTab(tab.id);
+                  onReconnectTab?.(tab.id);
+                }}
+              >
+                &#x21bb;
+              </span>
             )}
             <span
               className={styles.tabClose}

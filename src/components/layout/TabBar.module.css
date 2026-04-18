@@ -55,6 +55,51 @@
   background: var(--status-disconnected);
 }
 
+/* Spinner dot for a tab whose auto-reconnect loop is running. Uses the
+   connected green (not red) because the tab is actively trying, plus a
+   pulsing opacity to distinguish it from a healthy connection. */
+.statusReconnecting {
+  background: var(--cyan);
+  box-shadow: 0 0 4px var(--cyan);
+  animation: reconnectPulse 1s ease-in-out infinite;
+}
+
+@keyframes reconnectPulse {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+/* Italics on the tab label when a reconnect is pending. */
+.tabTitleItalic {
+  font-style: italic;
+}
+
+/* Dim the whole tab when the session is dead. */
+.tabDead {
+  opacity: 0.65;
+}
+
+.tabReconnecting {
+  /* No global change -- the status dot + italic title already signal this. */
+}
+
+/* Small reload glyph inserted between the title and the close X on dead
+   tabs. Clicking it (or the tab body) triggers onReconnectTab. */
+.reconnectGlyph {
+  font-size: 13px;
+  color: var(--cyan);
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.reconnectGlyph:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
 .tabClose {
   font-size: 14px;
   color: var(--text-dim);

@@ -9,6 +9,27 @@ export interface ConnectionParams {
 }
 
 /**
+ * Lifecycle state of the SSH channel behind a leaf.
+ *
+ *  - `connected`    : healthy, receiving data.
+ *  - `reconnecting` : the auto-reconnect loop is actively trying to restore
+ *                     the session (rendered italic + spinner).
+ *  - `disconnected` : the channel died AND no reconnect loop is running. The
+ *                     leaf is clickable to manually retry.
+ *  - `failed`       : the auto-reconnect loop ran out of attempts and gave up.
+ *                     Visually identical to `disconnected` but retained as a
+ *                     separate state so tooling can tell the difference.
+ *
+ * We keep the legacy `connected: boolean` flag alongside for pieces of UI
+ * that haven't migrated yet; it's always the boolean view of `connectionState`.
+ */
+export type ConnectionState =
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'failed';
+
+/**
  * Per-leaf session state. Each LeafNode in a pane tree owns one of these,
  * representing a single SSH connection rendered in a single xterm instance.
  */
@@ -23,6 +44,9 @@ export interface LeafContent {
   hostname: string;
   cwd: string | null;
   connected: boolean;
+  /** Richer lifecycle view. `connected` is kept in lockstep as
+   *  (connectionState === 'connected'). */
+  connectionState: ConnectionState;
   hasActivity: boolean;
   disconnectedAt: number | null;
   connectionParams: ConnectionParams | null;
@@ -73,6 +97,9 @@ interface TabState {
   setActiveTab: (id: string) => void;
   setFocusedLeaf: (tabId: string, leafId: string) => void;
   setConnected: (leafId: string, connected: boolean) => void;
+  /** Primary accessor for the richer lifecycle state. Keeps `connected`
+   *  in sync so legacy callers still work. */
+  setConnectionState: (leafId: string, state: ConnectionState) => void;
   setActivity: (leafId: string, hasActivity: boolean) => void;
   storeConnectionParams: (leafId: string, params: ConnectionParams) => void;
   renameTab: (tabId: string, title: string) => void;
@@ -194,6 +221,7 @@ export const useTabStore = create<TabState>((set) => ({
         hostname,
         cwd: null,
         connected: false,
+        connectionState: 'disconnected',
         hasActivity: false,
         disconnectedAt: null,
         connectionParams: null,
@@ -257,8 +285,39 @@ export const useTabStore = create<TabState>((set) => ({
         pane: updateLeaf(t.pane, leafId, (l) => ({
           ...l,
           connected,
+          // Keep connectionState in step: when flipping to false we only move
+          // to 'disconnected' if we were actually connected before, so we
+          // don't squash an intermediate 'reconnecting' by accident.
+          connectionState: connected
+            ? 'connected'
+            : l.connectionState === 'reconnecting' || l.connectionState === 'failed'
+              ? l.connectionState
+              : 'disconnected',
           disconnectedAt: !connected && l.connected ? Date.now() : l.disconnectedAt,
         })),
+      })),
+    })),
+
+  setConnectionState: (leafId, connectionState) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) => ({
+        ...t,
+        pane: updateLeaf(t.pane, leafId, (l) => {
+          const connected = connectionState === 'connected';
+          // Stamp the moment we left the connected state so the UI can render
+          // "Disconnected 12m ago" later if desired. Other state transitions
+          // leave the stamp alone.
+          const disconnectedAt =
+            connectionState !== 'connected' && l.connected
+              ? Date.now()
+              : l.disconnectedAt;
+          return {
+            ...l,
+            connected,
+            connectionState,
+            disconnectedAt,
+          };
+        }),
       })),
     })),
 
@@ -304,6 +363,9 @@ export const useTabStore = create<TabState>((set) => ({
         pane: updateLeaf(t.pane, leafId, (l) => ({
           ...l,
           sessionId,
+          // Assigning a new backend session id implies the previous one is
+          // being replaced (reconnect flow) -- clear the "dead" markers so
+          // the tab stops rendering the failed glyph before we're back.
           disconnectedAt: null,
         })),
       })),

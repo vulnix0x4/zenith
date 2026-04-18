@@ -258,6 +258,29 @@ export default function AppLayout() {
     [tabs, disconnect, unregisterTerminal, removeTab]
   );
 
+  // Clicking a dead tab's body or reload glyph fires this. We reconnect the
+  // tab's focused leaf; reconnecting every leaf of a multi-pane tab would
+  // clobber any still-alive sibling. The user can repeat the click on each
+  // pane if more than one died.
+  const handleReconnectTab = useCallback(
+    (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId);
+      if (!tab) return;
+      const leaves = leavesOf(tab.pane);
+      // Prefer the focused leaf if it's dead; otherwise grab the first dead
+      // leaf in the tab. Reconnecting a healthy leaf would tear it down.
+      const focused = leaves.find((l) => l.leafId === tab.focusedLeafId);
+      const target =
+        focused && focused.connectionState !== 'connected' && focused.connectionState !== 'reconnecting'
+          ? focused
+          : leaves.find(
+              (l) => l.connectionState === 'disconnected' || l.connectionState === 'failed'
+            );
+      if (target) reconnect(target.leafId);
+    },
+    [tabs, reconnect]
+  );
+
   // Closing a single pane: tear down its SSH session and unregister the
   // xterm. The store handles tree collapse + tab removal if it was the last.
   const handleClosePane = useCallback(
@@ -476,6 +499,7 @@ export default function AppLayout() {
             onNewTab={handleNewTab}
             onCloseTab={handleTabClose}
             onSearchClick={() => setShowPalette(true)}
+            onReconnectTab={handleReconnectTab}
             onTabDragStart={handleTabDragStart}
             onTabDragEnd={handleTabDragEnd}
           />
@@ -494,8 +518,15 @@ export default function AppLayout() {
             {tabs.map((tab) => {
               const leaves = leavesOf(tab.pane);
               const focused = leaves.find((l) => l.leafId === tab.focusedLeafId);
+              // Only show the "connection lost" banner when there's no active
+              // reconnect loop -- during auto-reconnect the status dot /
+              // italic title in the tab bar already communicates the state,
+              // and an extra banner adds visual noise.
               const showReconnectBanner =
-                focused && !focused.connected && focused.disconnectedAt !== null;
+                focused &&
+                !focused.connected &&
+                focused.connectionState !== 'reconnecting' &&
+                focused.disconnectedAt !== null;
               return (
                 <div
                   key={tab.id}
