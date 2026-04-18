@@ -5,17 +5,19 @@
  */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string): [number, number, number] => {
+    if (typeof v !== "string" || v.length === 0) {
+      throw new Error(`Invalid version: ${String(v)}`);
+    }
     const stripped = v.startsWith("v") ? v.slice(1) : v;
     const parts = stripped.split(".");
     if (parts.length !== 3) {
       throw new Error(`Invalid version: ${v}`);
     }
     const nums = parts.map((p) => {
-      const n = Number(p);
-      if (!Number.isInteger(n) || n < 0) {
+      if (!/^\d+$/.test(p)) {
         throw new Error(`Invalid version: ${v}`);
       }
-      return n;
+      return Number(p);
     });
     return [nums[0], nums[1], nums[2]];
   };

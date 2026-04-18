@@ -34,4 +34,13 @@ describe("compareVersions", () => {
     expect(() => compareVersions("abc", "1.2.3")).toThrow();
     expect(() => compareVersions("", "1.2.3")).toThrow();
   });
+
+  it("throws on subtly-malformed numeric segments", () => {
+    expect(() => compareVersions("1.2.3 ", "1.2.3")).toThrow();    // trailing space
+    expect(() => compareVersions(" 1.2.3", "1.2.3")).toThrow();    // leading space
+    expect(() => compareVersions("1.2.", "1.2.3")).toThrow();      // empty segment
+    expect(() => compareVersions("1e2.0.0", "1.2.3")).toThrow();   // scientific notation
+    expect(() => compareVersions("0x1.2.3", "1.2.3")).toThrow();   // hex
+    expect(() => compareVersions("+1.2.3", "1.2.3")).toThrow();    // unary plus
+  });
 });
