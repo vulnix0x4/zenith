@@ -28,6 +28,10 @@ export interface GeneralSettings {
   injectShellIntegration: boolean;
   /** When true, file browser shows entries beginning with "." (dotfiles). */
   showHiddenFiles: boolean;
+  /** SSH keepalive probe interval in seconds. 0 disables keepalives. Used
+   *  to stop corporate firewalls / NAT boxes from silently dropping idle
+   *  sessions. Plumbed through to russh's `Config.keepalive_interval`. */
+  sshKeepaliveSeconds: number;
 }
 
 export interface AppSettings {
@@ -58,6 +62,7 @@ const defaultSettings: AppSettings = {
     followTerminalCwd: true,
     injectShellIntegration: true,
     showHiddenFiles: false,
+    sshKeepaliveSeconds: 30,
   },
 };
 

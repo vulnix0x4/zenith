@@ -119,9 +119,23 @@ export default function SettingsPanel() {
             className={styles.inputNumber}
             type="number"
             min={1}
-            max={60}
+            max={300}
             value={general.reconnectDelay}
             onChange={(e) => handleNumberChange('general', 'reconnectDelay', e.target.value)}
+          />
+        </div>
+
+        <div className={styles.row}>
+          <span className={styles.label}>SSH Keepalive (sec, 0 = off)</span>
+          <input
+            className={styles.inputNumber}
+            type="number"
+            min={0}
+            max={300}
+            value={general.sshKeepaliveSeconds}
+            onChange={(e) =>
+              handleNumberChange('general', 'sshKeepaliveSeconds', e.target.value)
+            }
           />
         </div>
 

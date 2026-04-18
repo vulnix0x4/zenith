@@ -32,6 +32,10 @@ impl AppSettings {
         self.terminal.scrollback_lines = self.terminal.scrollback_lines.clamp(100, 1_000_000);
         self.monitoring.refresh_interval = self.monitoring.refresh_interval.clamp(1, 60);
         self.general.reconnect_delay = self.general.reconnect_delay.clamp(1, 300);
+        // SSH keepalive: 0 means "disabled", otherwise a sensible upper bound
+        // of 5 minutes (matching the connection-side backoff cap).
+        self.general.ssh_keepalive_seconds =
+            self.general.ssh_keepalive_seconds.clamp(0, 300);
     }
 }
 
@@ -96,6 +100,14 @@ pub struct GeneralSettings {
     /// Off by default -- most users don't want config noise in the listing.
     #[serde(default)]
     pub show_hidden_files: bool,
+    /// How often (in seconds) russh sends a keepalive probe on active SSH
+    /// sessions. `0` disables keepalives. Used to keep corporate firewalls
+    /// and NAT middleboxes from silently dropping idle sessions.
+    ///
+    /// Defaulted via serde so older settings.json files loaded prior to
+    /// this field existing continue to load without migration.
+    #[serde(default = "default_ssh_keepalive_seconds")]
+    pub ssh_keepalive_seconds: u32,
 }
 
 fn default_follow_terminal_cwd() -> bool {
@@ -104,6 +116,10 @@ fn default_follow_terminal_cwd() -> bool {
 
 fn default_inject_shell_integration() -> bool {
     true
+}
+
+fn default_ssh_keepalive_seconds() -> u32 {
+    30
 }
 
 impl Default for GeneralSettings {
@@ -116,6 +132,7 @@ impl Default for GeneralSettings {
             follow_terminal_cwd: true,
             inject_shell_integration: true,
             show_hidden_files: false,
+            ssh_keepalive_seconds: default_ssh_keepalive_seconds(),
         }
     }
 }
