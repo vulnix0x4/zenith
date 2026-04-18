@@ -2,6 +2,7 @@ use std::fs;
 
 use crate::sessions::storage::data_dir;
 use crate::settings::types::AppSettings;
+use crate::storage_util::atomic_write;
 
 fn settings_file() -> std::path::PathBuf {
     data_dir().join("settings.json")
@@ -12,18 +13,40 @@ fn load_settings() -> AppSettings {
     if !path.exists() {
         return AppSettings::default();
     }
-    match fs::read_to_string(&path) {
-        Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
-        Err(_) => AppSettings::default(),
-    }
+    let bytes = match fs::read(&path) {
+        Ok(b) => b,
+        Err(e) => {
+            log::warn!("settings.json read failed ({e}), using defaults");
+            return AppSettings::default();
+        }
+    };
+    let mut settings = match serde_json::from_slice::<AppSettings>(&bytes) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!(
+                "settings.json parse failed ({e}), backing up and resetting to defaults"
+            );
+            let backup = path.with_extension(format!(
+                "corrupted-{}",
+                chrono::Utc::now().timestamp()
+            ));
+            if let Err(rename_err) = fs::rename(&path, &backup) {
+                log::warn!(
+                    "failed to rename corrupt settings.json to backup: {rename_err}"
+                );
+            }
+            AppSettings::default()
+        }
+    };
+    settings.clamp_into_range();
+    settings
 }
 
 fn persist_settings(settings: &AppSettings) -> Result<(), String> {
-    let dir = data_dir();
-    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create config dir: {e}"))?;
     let json =
         serde_json::to_string_pretty(settings).map_err(|e| format!("Failed to serialize: {e}"))?;
-    fs::write(settings_file(), json).map_err(|e| format!("Failed to write settings: {e}"))?;
+    atomic_write(&settings_file(), json.as_bytes())
+        .map_err(|e| format!("Failed to write settings: {e}"))?;
     Ok(())
 }
 
@@ -33,7 +56,8 @@ pub fn get_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn save_settings(settings: AppSettings) -> Result<AppSettings, String> {
+pub fn save_settings(mut settings: AppSettings) -> Result<AppSettings, String> {
+    settings.clamp_into_range();
     persist_settings(&settings)?;
     Ok(settings)
 }

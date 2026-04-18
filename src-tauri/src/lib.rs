@@ -4,6 +4,7 @@ mod sessions;
 mod settings;
 mod sftp;
 mod ssh;
+mod storage_util;
 mod updater;
 
 use credentials::commands::*;

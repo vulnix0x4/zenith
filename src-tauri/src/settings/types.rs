@@ -18,6 +18,23 @@ impl Default for AppSettings {
     }
 }
 
+impl AppSettings {
+    /// Clamp numeric fields to sane ranges. Protects against a user
+    /// hand-editing settings.json with garbage values (e.g. fontSize: -5,
+    /// refreshInterval: 99999) breaking the UI. Called on load.
+    pub fn clamp_into_range(&mut self) {
+        self.terminal.font_size = self.terminal.font_size.clamp(8, 32);
+        // line_height is f64; clamp with explicit NaN handling (NaN -> default).
+        if !self.terminal.line_height.is_finite() {
+            self.terminal.line_height = 1.4;
+        }
+        self.terminal.line_height = self.terminal.line_height.clamp(1.0, 3.0);
+        self.terminal.scrollback_lines = self.terminal.scrollback_lines.clamp(100, 1_000_000);
+        self.monitoring.refresh_interval = self.monitoring.refresh_interval.clamp(1, 60);
+        self.general.reconnect_delay = self.general.reconnect_delay.clamp(1, 300);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSettings {

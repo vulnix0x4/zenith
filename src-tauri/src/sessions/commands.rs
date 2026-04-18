@@ -1,6 +1,8 @@
 use crate::sessions::storage;
 use crate::sessions::types::SessionsData;
 use crate::sessions::types::{Folder, Session};
+use std::collections::HashSet;
+use uuid::Uuid;
 
 #[tauri::command]
 pub fn get_sessions() -> Result<SessionsData, String> {
@@ -74,28 +76,72 @@ pub fn export_sessions_file(path: String) -> Result<(), String> {
     storage::export_sessions(&data, &path)
 }
 
+/// Summary returned to the frontend after a session import. Reports how
+/// many sessions+folders were imported and how many had to be given a new
+/// UUID because their id clashed with an existing entry.
+#[derive(serde::Serialize)]
+pub struct ImportSummary {
+    pub imported: usize,
+    pub renamed: usize,
+}
+
 #[tauri::command]
-pub fn import_sessions_file(path: String) -> Result<SessionsData, String> {
+pub fn import_sessions_file(path: String) -> Result<ImportSummary, String> {
     let imported = storage::import_sessions(&path)?;
     let mut data = storage::load_sessions();
 
-    // Merge imported data: add sessions/folders that don't already exist by id
-    let existing_session_ids: std::collections::HashSet<String> =
+    let mut existing_session_ids: HashSet<String> =
         data.sessions.iter().map(|s| s.id.clone()).collect();
-    let existing_folder_ids: std::collections::HashSet<String> =
+    let mut existing_folder_ids: HashSet<String> =
         data.folders.iter().map(|f| f.id.clone()).collect();
 
-    for session in imported.sessions {
-        if !existing_session_ids.contains(&session.id) {
-            data.sessions.push(session);
+    let mut imported_count = 0usize;
+    let mut renamed_count = 0usize;
+
+    // Track folder id remaps so imported sessions that referenced a renamed
+    // folder keep pointing to the right folder.
+    let mut folder_id_remap: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+
+    for mut folder in imported.folders {
+        if existing_folder_ids.contains(&folder.id) {
+            let old_id = folder.id.clone();
+            let new_id = Uuid::new_v4().to_string();
+            log::info!(
+                "folder renamed on import due to ID conflict: {old_id} -> {new_id}"
+            );
+            folder.id = new_id.clone();
+            folder_id_remap.insert(old_id, new_id);
+            renamed_count += 1;
         }
+        existing_folder_ids.insert(folder.id.clone());
+        data.folders.push(folder);
+        imported_count += 1;
     }
-    for folder in imported.folders {
-        if !existing_folder_ids.contains(&folder.id) {
-            data.folders.push(folder);
+
+    for mut session in imported.sessions {
+        if let Some(fid) = session.folder_id.as_ref() {
+            if let Some(new_fid) = folder_id_remap.get(fid) {
+                session.folder_id = Some(new_fid.clone());
+            }
         }
+        if existing_session_ids.contains(&session.id) {
+            let old_id = session.id.clone();
+            let new_id = Uuid::new_v4().to_string();
+            log::info!(
+                "session renamed on import due to ID conflict: {old_id} -> {new_id}"
+            );
+            session.id = new_id;
+            renamed_count += 1;
+        }
+        existing_session_ids.insert(session.id.clone());
+        data.sessions.push(session);
+        imported_count += 1;
     }
 
     storage::save_sessions(&data)?;
-    Ok(data)
+    Ok(ImportSummary {
+        imported: imported_count,
+        renamed: renamed_count,
+    })
 }
