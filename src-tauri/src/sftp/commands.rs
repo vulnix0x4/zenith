@@ -50,15 +50,25 @@ pub async fn sftp_download(
 }
 
 /// Upload a local file to a remote path.
+///
+/// If `overwrite` is omitted or false and the remote path already exists,
+/// returns a `FILE_EXISTS`-tagged error the frontend detects and uses to
+/// prompt the user to confirm before retrying with `overwrite: true`.
 #[tauri::command]
 pub async fn sftp_upload(
     session_id: String,
     local_path: String,
     remote_path: String,
+    overwrite: Option<bool>,
     sftp_manager: State<'_, SftpManager>,
 ) -> Result<(), String> {
     sftp_manager
-        .upload(&session_id, &local_path, &remote_path)
+        .upload(
+            &session_id,
+            &local_path,
+            &remote_path,
+            overwrite.unwrap_or(false),
+        )
         .await
         .map_err(|e| e.to_string())
 }

@@ -4,10 +4,11 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use russh_sftp::client::SftpSession;
-use russh_sftp::protocol::FilePermissions;
+use russh_sftp::protocol::{FilePermissions, FileType};
 use tokio::sync::Mutex;
 
-use crate::sftp::types::FileEntry;
+use crate::sftp::errors::{file_exists_error, humanize_sftp_error};
+use crate::sftp::types::{FileEntry, FileKind};
 use crate::ssh::SharedSshHandle;
 
 /// Manages SFTP sessions, one per SSH connection.
@@ -38,7 +39,7 @@ impl SftpManager {
 
         let sftp = SftpSession::new(channel.into_stream())
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize SFTP session: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("Failed to initialize SFTP session: {}", humanize_sftp_error(&e)))?;
 
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.to_string(), sftp);
@@ -65,7 +66,7 @@ impl SftpManager {
         let read_dir = sftp
             .read_dir(path)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to read directory: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
 
         let base_path = if path.ends_with('/') {
             path.to_string()
@@ -77,7 +78,8 @@ impl SftpManager {
             .map(|entry| {
                 let name = entry.file_name();
                 let metadata = entry.metadata();
-                let is_dir = metadata.is_dir();
+                let ftype = entry.file_type();
+                let is_dir = ftype == FileType::Dir;
                 let size = metadata.size.unwrap_or(0);
 
                 let modified = metadata.mtime.map(|t| {
@@ -95,6 +97,16 @@ impl SftpManager {
 
                 let full_path = format!("{base_path}{name}");
 
+                // Map russh-sftp's FileType to our serializable FileKind. We
+                // keep `is_dir` for callers that only need the coarse split,
+                // but file_type is the source of truth for the UI.
+                let file_type = match ftype {
+                    FileType::Dir => FileKind::Directory,
+                    FileType::File => FileKind::File,
+                    FileType::Symlink => FileKind::Symlink,
+                    FileType::Other => FileKind::Other,
+                };
+
                 FileEntry {
                     name,
                     path: full_path,
@@ -102,6 +114,7 @@ impl SftpManager {
                     size,
                     modified,
                     permissions,
+                    file_type,
                 }
             })
             .collect();
@@ -124,7 +137,7 @@ impl SftpManager {
         let data = sftp
             .read(remote_path)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to read remote file: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
 
         tokio::fs::write(local_path, &data)
             .await
@@ -134,11 +147,15 @@ impl SftpManager {
     }
 
     /// Upload a local file to a remote path.
+    ///
+    /// If `overwrite` is false and the remote path already exists, returns
+    /// a `FILE_EXISTS` error the frontend can detect to prompt the user.
     pub async fn upload(
         &self,
         session_id: &str,
         local_path: &str,
         remote_path: &str,
+        overwrite: bool,
     ) -> Result<()> {
         let data = tokio::fs::read(local_path)
             .await
@@ -149,9 +166,24 @@ impl SftpManager {
             .get(session_id)
             .context("SFTP session not found")?;
 
+        if !overwrite {
+            // Best-effort existence check. `try_exists` returns false for
+            // NoSuchFile and propagates other errors (e.g. permission) -- we
+            // let those fall through to the `write` call which will surface
+            // a clearer humanized error.
+            match sftp.try_exists(remote_path).await {
+                Ok(true) => return Err(file_exists_error(remote_path)),
+                Ok(false) => {}
+                Err(_) => {
+                    // Couldn't determine existence -- fall through and let
+                    // the write attempt produce the error.
+                }
+            }
+        }
+
         sftp.write(remote_path, &data)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to write remote file: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
 
         Ok(())
     }
@@ -166,16 +198,16 @@ impl SftpManager {
         let metadata = sftp
             .metadata(path)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get file metadata: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
 
         if metadata.is_dir() {
             sftp.remove_dir(path)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to remove directory: {e}"))?;
+                .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
         } else {
             sftp.remove_file(path)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to remove file: {e}"))?;
+                .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
         }
 
         Ok(())
@@ -190,7 +222,7 @@ impl SftpManager {
 
         sftp.rename(old_path, new_path)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to rename: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
 
         Ok(())
     }
@@ -204,7 +236,7 @@ impl SftpManager {
 
         sftp.create_dir(path)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to create directory: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
 
         Ok(())
     }
