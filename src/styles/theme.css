@@ -42,6 +42,7 @@
   --sidebar-width: 260px;
   --tab-bar-height: 36px;
   --monitor-bar-height: 40px;
+  --titlebar-height: 38px;
 
   /* Transitions */
   --transition-fast: 0.15s ease;

@@ -1,10 +1,12 @@
-import styles from './TitleBar.module.css';
+import UpdateIndicator from "./UpdateIndicator";
+import styles from "./TitleBar.module.css";
 
 interface TitleBarProps {
   onSearchClick?: () => void;
+  onOpenUpdates?: () => void;
 }
 
-export default function TitleBar({ onSearchClick }: TitleBarProps) {
+export default function TitleBar({ onSearchClick, onOpenUpdates }: TitleBarProps) {
   return (
     <div className={styles.titleBar}>
       <div className={styles.logo}>ZENITH</div>
@@ -13,6 +15,7 @@ export default function TitleBar({ onSearchClick }: TitleBarProps) {
         <span className={styles.searchShortcut}>&#x2318;K</span>
       </div>
       <div className={styles.spacer} />
+      <UpdateIndicator onOpenSettings={onOpenUpdates} />
     </div>
   );
 }

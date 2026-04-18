@@ -6,6 +6,7 @@ import type { Terminal } from '@xterm/xterm';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import TabBar from './TabBar';
+import TitleBar from './TitleBar';
 import MonitorBar from './MonitorBar';
 import SplitTerminal from '../terminal/SplitTerminal';
 import XTerminal from '../terminal/XTerminal';
@@ -21,6 +22,7 @@ import {
 import { useSessionStore, type Session } from '../../stores/sessionStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useUpdaterStore } from '../../stores/updaterStore';
 import { useSshConnection } from '../../hooks/useSshConnection';
 import { useMonitoring } from '../../hooks/useMonitoring';
 import styles from './AppLayout.module.css';
@@ -58,6 +60,31 @@ export default function AppLayout() {
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // Kick off a silent update check once on app launch. Failures fall through
+  // to idle (see updaterStore.checkForUpdate when silent: true) so this is
+  // non-disruptive even when offline / behind a captive portal.
+  const checkForUpdate = useUpdaterStore((s) => s.checkForUpdate);
+  useEffect(() => {
+    void checkForUpdate({ silent: true });
+  }, [checkForUpdate]);
+
+  // Clicking the UpdateIndicator pill in the title bar should open the
+  // settings sidebar panel and scroll the Updates section into view. We
+  // write directly via setState rather than reuse setSidebarPanel('settings')
+  // because the latter toggles the panel closed when it's already active --
+  // from the pill's perspective we always want "open", never "toggle".
+  const handleOpenUpdates = useCallback(() => {
+    useLayoutStore.setState({ sidebarPanel: 'settings', sidebarOpen: true });
+    // Give React a frame to mount SettingsPanel before scrolling to the
+    // #updates-section anchor -- before that, the node doesn't exist yet.
+    requestAnimationFrame(() => {
+      document.getElementById('updates-section')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, []);
 
   // The active tab + its focused leaf drive the file browser, monitoring, and
   // sidebar highlights. We resolve them once and reuse below.
@@ -382,7 +409,10 @@ export default function AppLayout() {
 
   return (
     <div className={styles.layout}>
-      <div className={styles.dragStrip} />
+      <TitleBar
+        onSearchClick={() => setShowPalette(true)}
+        onOpenUpdates={handleOpenUpdates}
+      />
       <div className={styles.body}>
         <ActivityBar />
         <Sidebar
