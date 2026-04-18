@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::ssh::connection::{SharedSshHandle, SshConnection};
+use crate::ssh::connection::{ConnectError, SharedSshHandle, SshConnection};
 use crate::ssh::types::{SshConnectRequest, SshEvent};
 
 /// Entry for an active SSH session, holding the channel senders
@@ -33,18 +33,20 @@ impl SshManager {
     ///
     /// The `event_tx` sender is used to push `SshEvent`s back to the caller
     /// (ultimately forwarded to the frontend via Tauri's IPC channel).
+    ///
+    /// Returns the underlying [`ConnectError`] on failure so the Tauri command
+    /// layer can distinguish a host-key mismatch from any other failure mode
+    /// without string-matching.
     pub async fn connect(
         &self,
         request: SshConnectRequest,
         event_tx: mpsc::UnboundedSender<SshEvent>,
-    ) -> Result<()> {
+    ) -> Result<(), ConnectError> {
         let session_id = request.session_id.clone();
 
         // Establish the SSH connection.
         // connect() returns both the connection and a shared handle.
-        let (conn, shared_handle) = SshConnection::connect(&request)
-            .await
-            .context("SSH connection failed")?;
+        let (conn, shared_handle) = SshConnection::connect(&request).await?;
 
         // Create channels for write and resize commands
         let (write_tx, write_rx) = mpsc::unbounded_channel::<Vec<u8>>();

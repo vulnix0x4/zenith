@@ -7,20 +7,65 @@ use russh::keys::{self, PrivateKeyWithHashAlg};
 use russh::{ChannelMsg, Disconnect};
 use tokio::sync::mpsc;
 
+use crate::ssh::known_hosts::{self, CheckResult};
 use crate::ssh::types::{AuthMethod, SshConnectRequest, SshEvent};
 
-/// Client handler for russh. Accepts all host keys for now.
-pub(crate) struct ClientHandler;
+/// Default seconds between SSH keepalive probes when the caller didn't supply
+/// a value. Chosen to be well under common NAT/idle-timeouts (5 minutes on
+/// many corporate firewalls) while staying cheap.
+const DEFAULT_KEEPALIVE_SECONDS: u64 = 30;
+
+/// Concrete error type surfaced inside `russh::client::Handler::Error`. We
+/// only need one distinguishable variant here -- a host-key mismatch -- so we
+/// carry the mismatch details inline and fall through to `Russh` for anything
+/// the underlying transport produces.
+///
+/// russh's `client::connect()` returns `Result<Handle<H>, H::Error>`, so
+/// `HandlerError` is what we ultimately pattern-match on when the handshake
+/// fails, without having to parse text.
+#[derive(Debug, thiserror::Error)]
+pub enum HandlerError {
+    #[error("host key mismatch (expected {expected}, got {actual})")]
+    HostKeyMismatch {
+        expected: String,
+        actual: String,
+    },
+    #[error(transparent)]
+    Russh(#[from] russh::Error),
+}
+
+/// Client handler for russh. Enforces host-key TOFU via
+/// [`known_hosts::check_and_record`].
+pub(crate) struct ClientHandler {
+    hostname: String,
+    port: u16,
+}
+
+impl ClientHandler {
+    fn new(hostname: String, port: u16) -> Self {
+        Self { hostname, port }
+    }
+}
 
 impl client::Handler for ClientHandler {
-    type Error = russh::Error;
+    type Error = HandlerError;
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &keys::PublicKey,
+        server_public_key: &keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        // TODO: Implement known_hosts checking
-        Ok(true)
+        match known_hosts::check_and_record(&self.hostname, self.port, server_public_key) {
+            CheckResult::TrustedOnFirstUse | CheckResult::Match => Ok(true),
+            CheckResult::Mismatch { expected_fingerprint, actual_fingerprint } => {
+                // Returning Err aborts the handshake. russh propagates this
+                // up through `client::connect`, letting the caller downcast
+                // the structured mismatch without string parsing.
+                Err(HandlerError::HostKeyMismatch {
+                    expected: expected_fingerprint,
+                    actual: actual_fingerprint,
+                })
+            }
+        }
     }
 }
 
@@ -31,6 +76,36 @@ pub type SshHandle = client::Handle<ClientHandler>;
 /// After authentication completes, all Handle methods used (channel_open_session,
 /// disconnect) take &self, so an Arc suffices -- no Mutex needed.
 pub type SharedSshHandle = Arc<SshHandle>;
+
+/// Distinguishable error returned from `SshConnection::connect` so the
+/// Tauri command layer can translate a host-key mismatch into the typed
+/// `SshConnectError::HostKeyMismatch` payload.
+#[derive(Debug)]
+pub enum ConnectError {
+    HostKeyMismatch {
+        expected: String,
+        actual: String,
+    },
+    Other(anyhow::Error),
+}
+
+impl From<anyhow::Error> for ConnectError {
+    fn from(e: anyhow::Error) -> Self {
+        ConnectError::Other(e)
+    }
+}
+
+impl std::fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnectError::HostKeyMismatch { expected, actual } => write!(
+                f,
+                "host key mismatch (expected {expected}, got {actual})"
+            ),
+            ConnectError::Other(e) => write!(f, "{e:#}"),
+        }
+    }
+}
 
 /// Represents an active SSH connection with an open shell channel.
 /// The SSH handle is stored externally in a `SharedSshHandle` so that
@@ -44,17 +119,38 @@ impl SshConnection {
     /// Connect to a remote host, authenticate, open a PTY, and start a shell.
     /// Returns the connection and a shared handle that can be used to open
     /// additional channels (e.g. for SFTP).
-    pub async fn connect(request: &SshConnectRequest) -> Result<(Self, SharedSshHandle)> {
+    pub async fn connect(
+        request: &SshConnectRequest,
+    ) -> Result<(Self, SharedSshHandle), ConnectError> {
+        // Translate the caller's keepalive preference into an Option<Duration>:
+        //   None               -> fall back to DEFAULT_KEEPALIVE_SECONDS.
+        //   Some(0)            -> disabled.
+        //   Some(n) when n > 0 -> Duration::from_secs(n).
+        let keepalive = match request.keepalive_seconds {
+            Some(0) => None,
+            Some(n) => Some(Duration::from_secs(n)),
+            None => Some(Duration::from_secs(DEFAULT_KEEPALIVE_SECONDS)),
+        };
+
         let config = client::Config {
             inactivity_timeout: Some(Duration::from_secs(600)),
-            keepalive_interval: Some(Duration::from_secs(30)),
+            keepalive_interval: keepalive,
             ..<_>::default()
         };
 
         let addr = format!("{}:{}", request.hostname, request.port);
-        let mut handle = client::connect(Arc::new(config), &addr, ClientHandler)
-            .await
-            .context("Failed to connect to SSH server")?;
+        let handler = ClientHandler::new(request.hostname.clone(), request.port);
+        let mut handle = match client::connect(Arc::new(config), &addr, handler).await {
+            Ok(h) => h,
+            Err(HandlerError::HostKeyMismatch { expected, actual }) => {
+                return Err(ConnectError::HostKeyMismatch { expected, actual });
+            }
+            Err(HandlerError::Russh(e)) => {
+                return Err(ConnectError::Other(
+                    anyhow::Error::new(e).context("Failed to connect to SSH server"),
+                ));
+            }
+        };
 
         // Authenticate (requires &mut handle)
         let auth_result = match &request.auth_method {
@@ -90,7 +186,9 @@ impl SshConnection {
         };
 
         if !auth_result.success() {
-            anyhow::bail!("Authentication rejected by server");
+            return Err(ConnectError::Other(anyhow::anyhow!(
+                "Authentication rejected by server"
+            )));
         }
 
         // Open a session channel for the interactive shell

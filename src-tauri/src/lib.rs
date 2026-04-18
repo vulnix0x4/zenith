@@ -34,6 +34,7 @@ pub fn run() {
             ssh_write,
             ssh_resize,
             ssh_disconnect,
+            forget_host_key,
             get_sessions,
             save_session,
             delete_session,
