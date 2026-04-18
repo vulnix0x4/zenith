@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useSessionStore } from '../../stores/sessionStore';
+import UpdatesSection from './UpdatesSection';
 import styles from './SettingsPanel.module.css';
 
 export default function SettingsPanel() {
@@ -67,6 +68,9 @@ export default function SettingsPanel() {
 
   return (
     <div className={styles.container}>
+      {/* Updates */}
+      <UpdatesSection />
+
       {/* General Settings */}
       <div className={styles.section}>
         <div className={styles.sectionTitle}>General</div>
