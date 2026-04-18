@@ -103,6 +103,27 @@
   white-space: nowrap;
 }
 
+/* Inline rename input for folders. Matches the folderName span's font so the
+   switch between view and edit mode doesn't shift layout. */
+.folderNameInput {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-deep);
+  border: 1px solid var(--cyan-dim);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.folderNameInput:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+
 .badge {
   font-size: 10px;
   color: var(--text-dim);

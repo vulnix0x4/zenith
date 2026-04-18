@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useSessionStore, type Session, type Folder } from '../../stores/sessionStore';
 import SessionDialog from './SessionDialog';
@@ -14,6 +14,10 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
     useSessionStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
+
+  // Inline-rename state for folders. When set, that folder's header renders
+  // an <input> instead of a <span>. Committing or escaping clears it.
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -36,14 +40,18 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
     [saveSession]
   );
 
-  const handleNewFolder = useCallback(() => {
+  // Creating a new folder: save it with the default name, then immediately
+  // enter inline-rename mode so the user can type the real name without having
+  // to go hunting for a rename action.
+  const handleNewFolder = useCallback(async () => {
     const folder: Folder = {
       id: uuid(),
       name: 'New Folder',
       sortOrder: folders.length,
       expanded: true,
     };
-    saveFolder(folder);
+    await saveFolder(folder);
+    setEditingFolderId(folder.id);
   }, [folders.length, saveFolder]);
 
   const handleDoubleClickSession = useCallback(
@@ -61,6 +69,17 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
       }
     },
     [sessions, onConnect]
+  );
+
+  // Commit a folder rename: trim, reject empty (revert), persist via saveFolder.
+  const commitFolderRename = useCallback(
+    (folder: Folder, nextName: string) => {
+      setEditingFolderId(null);
+      const trimmed = nextName.trim();
+      if (!trimmed || trimmed === folder.name) return;
+      saveFolder({ ...folder, name: trimmed });
+    },
+    [saveFolder]
   );
 
   const rootSessions = sessions
@@ -93,17 +112,39 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
       <div className={styles.list}>
         {sortedFolders.map((folder) => {
           const folderSessions = getSessionsInFolder(folder.id);
+          const isEditing = editingFolderId === folder.id;
           return (
             <div key={folder.id} className={styles.folderGroup}>
               <div
                 className={styles.folderHeader}
-                onClick={() => toggleFolder(folder.id)}
-                onDoubleClick={() => handleDoubleClickFolder(folder)}
+                onClick={() => {
+                  // Don't toggle expand/collapse while the header is in
+                  // rename mode -- the user is typing in the input and we
+                  // shouldn't swallow the click as a toggle.
+                  if (isEditing) return;
+                  toggleFolder(folder.id);
+                }}
+                onDoubleClick={() => {
+                  if (isEditing) return;
+                  handleDoubleClickFolder(folder);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setEditingFolderId(folder.id);
+                }}
               >
                 <span className={styles.folderArrow}>
                   {folder.expanded ? '\u25BE' : '\u25B8'}
                 </span>
-                <span className={styles.folderName}>{folder.name}</span>
+                {isEditing ? (
+                  <FolderNameInput
+                    initial={folder.name}
+                    onCommit={(name) => commitFolderRename(folder, name)}
+                    onCancel={() => setEditingFolderId(null)}
+                  />
+                ) : (
+                  <span className={styles.folderName}>{folder.name}</span>
+                )}
                 <span className={styles.badge}>{folderSessions.length}</span>
                 <button
                   className={styles.deleteBtn}
@@ -156,6 +197,48 @@ export default function SessionSidebar({ onConnect, connectedSessionIds }: Sessi
         session={editingSession}
       />
     </div>
+  );
+}
+
+/** Controlled input for renaming a folder inline. Autofocuses + selects all
+ *  on mount so the user can start typing immediately. Enter / blur commits,
+ *  Escape reverts. */
+function FolderNameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <input
+      ref={inputRef}
+      className={styles.folderNameInput}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onCommit(value);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
+      onBlur={() => onCommit(value)}
+    />
   );
 }
 
