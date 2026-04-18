@@ -138,7 +138,7 @@ export default function TabBar({
   }, [contextMenu]);
 
   return (
-    <div className={styles.tabBar}>
+    <div data-tab-bar className={styles.tabBar}>
       {tabs.map((tab) => {
         const { state, hasActivity, anyDead } = tabAggregateState(tab);
         const title = tabTitleFor(tab);

@@ -369,31 +369,49 @@ export default function AppLayout() {
     };
   }, [privacyMode]);
 
-  // Document-level click-outside listener: whenever the user clicks anywhere
-  // that isn't the sidebar, activity bar, or title bar, collapse the sidebar
-  // if the autoCollapseSidebar setting is on. This replaces the old approach
-  // of gating on `anyConnected` + an onMouseDown handler on the terminal area
-  // div, which missed the case where the Settings panel was open with no
-  // active SSH sessions, and which didn't reliably bubble out of xterm.
+  // Track whether any session is currently connected so we can auto-collapse
+  // the sidebar the moment a connection comes up (no click required).
+  const anyConnected = useMemo(
+    () => tabs.some((t) => leavesOf(t.pane).some((l) => l.connected)),
+    [tabs]
+  );
+
+  // Auto-collapse when a session first becomes connected. Firing only on
+  // transitions of `anyConnected` means a user who manually re-opens the
+  // sidebar while still connected doesn't get it slammed shut again.
+  useEffect(() => {
+    if (autoCollapse === false) return;
+    if (anyConnected && sidebarOpen) {
+      toggleSidebar();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyConnected]);
+
+  // Document-level CLICK listener (not mousedown — mousedown fires before a
+  // drag starts, and the resulting layout reflow aborts tab drag-to-split).
+  // `click` doesn't fire during HTML5 drag-and-drop so we get both: the
+  // sidebar collapses on ordinary clicks outside itself, and tab-drag
+  // initiation is left undisturbed. Excludes tab bar clicks too so single-
+  // clicking a tab to switch focus doesn't also slam the sidebar.
   useEffect(() => {
     if (autoCollapse === false || !sidebarOpen) return;
 
-    const onMouseDown = (e: MouseEvent) => {
+    const onClick = (e: MouseEvent) => {
       const target = e.target as Node | null;
       if (!target) return;
-      // Don't collapse when clicking the sidebar itself, the activity bar
-      // (so re-clicking the same icon to toggle works), or the title bar.
       const sidebarEl = document.querySelector('[data-sidebar-root]');
       const activityEl = document.querySelector('[data-activity-bar]');
       const titleBarEl = document.querySelector('[data-title-bar]');
+      const tabBarEl = document.querySelector('[data-tab-bar]');
       if (sidebarEl?.contains(target)) return;
       if (activityEl?.contains(target)) return;
       if (titleBarEl?.contains(target)) return;
+      if (tabBarEl?.contains(target)) return;
       toggleSidebar();
     };
 
-    document.addEventListener('mousedown', onMouseDown);
-    return () => document.removeEventListener('mousedown', onMouseDown);
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
   }, [autoCollapse, sidebarOpen, toggleSidebar]);
 
   // Global Cmd/Ctrl+K opens the command palette. We deliberately skip
