@@ -26,6 +26,17 @@
   white-space: nowrap;
   transition: background var(--transition-fast), color var(--transition-fast);
   flex-shrink: 0;
+  /* Tab is a div-with-role-tab so styling its cursor / selection /
+     outline here (we intentionally don't use a <button>; Chromium has
+     known issues with `<button draggable>` that fire click instead of
+     dragstart on short drags). */
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.tab:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--cyan-dim);
 }
 
 .tab:hover {

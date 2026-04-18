@@ -145,14 +145,24 @@ export default function TabBar({
         const isReconnecting = state === 'reconnecting';
         const isDead = state === 'disconnected' || state === 'failed';
         return (
-          <button
+          // Intentionally a <div> (with button role) rather than a real
+          // <button>. Chromium / WebView2 have long-standing quirks with
+          // `<button draggable>` where the button's activation behavior
+          // intercepts the drag and fires click instead of dragstart; using
+          // a plain div with draggable={true} avoids that edge case
+          // entirely. Accessibility semantics are preserved via role + key
+          // handling.
+          <div
             key={tab.id}
+            role="tab"
+            tabIndex={0}
+            aria-selected={tab.id === activeTabId}
             className={`${styles.tab} ${tab.id === activeTabId ? styles.tabActive : ''} ${
               hasActivity && tab.id !== activeTabId ? styles.hasActivity : ''
             } ${isReconnecting ? styles.tabReconnecting : ''} ${
               isDead ? styles.tabDead : ''
             }`}
-            draggable
+            draggable={true}
             onDragStart={(e) => {
               // dataTransfer payload isn't strictly needed (parent tracks
               // source via onTabDragStart) but Chrome won't fire dragover on
@@ -168,6 +178,13 @@ export default function TabBar({
               // healthy tabs this just activates.
               setActiveTab(tab.id);
               if (anyDead) onReconnectTab?.(tab.id);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveTab(tab.id);
+                if (anyDead) onReconnectTab?.(tab.id);
+              }
             }}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -227,7 +244,7 @@ export default function TabBar({
             >
               &times;
             </span>
-          </button>
+          </div>
         );
       })}
       <div className={styles.actions}>
