@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { log } from '../lib/log';
 
 export type AuthMethod = 'password' | 'privateKey';
 
@@ -54,7 +55,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       const data = await invoke<SessionsData>('get_sessions');
       set({ sessions: data.sessions, folders: data.folders });
     } catch (err) {
-      console.error('Failed to load sessions:', err);
+      log.error('sessions', 'failed to load sessions', err);
     }
   },
 
@@ -63,7 +64,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       const data = await invoke<SessionsData>('save_session', { session });
       set({ sessions: data.sessions, folders: data.folders });
     } catch (err) {
-      console.error('Failed to save session:', err);
+      log.error('sessions', 'failed to save session', err);
     }
   },
 
@@ -72,7 +73,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       const data = await invoke<SessionsData>('delete_session', { sessionId: id });
       set({ sessions: data.sessions, folders: data.folders });
     } catch (err) {
-      console.error('Failed to delete session:', err);
+      log.error('sessions', 'failed to delete session', err);
     }
   },
 
@@ -81,7 +82,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       const data = await invoke<SessionsData>('save_folder', { folder });
       set({ sessions: data.sessions, folders: data.folders });
     } catch (err) {
-      console.error('Failed to save folder:', err);
+      log.error('sessions', 'failed to save folder', err);
     }
   },
 
@@ -90,7 +91,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       const data = await invoke<SessionsData>('delete_folder', { folderId: id });
       set({ sessions: data.sessions, folders: data.folders });
     } catch (err) {
-      console.error('Failed to delete folder:', err);
+      log.error('sessions', 'failed to delete folder', err);
     }
   },
 
@@ -102,7 +103,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       });
       set({ sessions: data.sessions, folders: data.folders });
     } catch (err) {
-      console.error('Failed to move session:', err);
+      log.error('sessions', 'failed to move session', err);
     }
   },
 

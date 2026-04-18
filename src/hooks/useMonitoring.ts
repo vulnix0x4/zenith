@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke, Channel } from '@tauri-apps/api/core';
+import { log } from '../lib/log';
 
 export interface MonitorData {
   cpu: number;
@@ -51,7 +52,7 @@ export function useMonitoring(sessionId: string | null): MonitorData | null {
     };
 
     invoke('start_monitoring', { sessionId, onEvent }).catch((err) => {
-      console.error('Failed to start monitoring:', err);
+      log.error('monitoring', 'failed to start monitoring', err);
     });
 
     return () => {

@@ -48,6 +48,8 @@ export default function ActivityBar() {
         className={`${styles.iconButton} ${isActive ? styles.iconButtonActive : ''}`}
         onClick={() => setSidebarPanel(item.panel)}
         title={item.label}
+        aria-label={item.label}
+        aria-pressed={isActive}
       >
         {item.icon}
       </button>

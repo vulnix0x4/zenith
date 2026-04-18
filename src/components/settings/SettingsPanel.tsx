@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useSessionStore } from '../../stores/sessionStore';
+import { log } from '../../lib/log';
 import UpdatesSection from './UpdatesSection';
 import styles from './SettingsPanel.module.css';
 
@@ -24,7 +25,7 @@ export default function SettingsPanel() {
   useEffect(() => {
     invoke<StorageStatus>('get_credential_storage_status')
       .then(setStorageStatus)
-      .catch((err) => console.error('Failed to query credential storage status:', err));
+      .catch((err) => log.error('settings', 'failed to query credential storage status', err));
   }, []);
 
   const handleNumberChange = useCallback(
@@ -54,7 +55,7 @@ export default function SettingsPanel() {
         await invoke('export_sessions_file', { path });
       }
     } catch (err) {
-      console.error('Export failed:', err);
+      log.error('settings', 'session export failed', err);
     }
   }, []);
 
@@ -70,7 +71,7 @@ export default function SettingsPanel() {
         loadSessions();
       }
     } catch (err) {
-      console.error('Import failed:', err);
+      log.error('settings', 'session import failed', err);
     }
   }, [loadSessions]);
 

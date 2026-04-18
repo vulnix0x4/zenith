@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { platform, arch } from "@tauri-apps/plugin-os";
 import { isNewerVersion } from "../updater/versions";
+import { log } from "../lib/log";
 import {
   selectAsset,
   type GithubAsset,
@@ -168,7 +169,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         error: null,
       });
     } catch (err) {
-      console.error("updater:", err);
+      log.error("updater", "check failed", err);
       if (silent) {
         set({ status: "idle" });
         return;

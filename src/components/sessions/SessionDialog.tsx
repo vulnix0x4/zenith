@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { v4 as uuid } from 'uuid';
 import { invoke } from '@tauri-apps/api/core';
 import type { Session, AuthMethod } from '../../stores/sessionStore';
+import { log } from '../../lib/log';
 import styles from './SessionDialog.module.css';
 
 interface SessionDialogProps {
@@ -72,7 +73,7 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
       try {
         await invoke('save_credential', { sessionId, password: passwordField });
       } catch (err) {
-        console.error('Failed to save credential:', err);
+        log.error('credentials', 'failed to save credential', err);
       }
     }
 

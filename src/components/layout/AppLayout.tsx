@@ -510,8 +510,10 @@ export default function AppLayout() {
             {tabs.length === 0 && (
               <div className={styles.placeholder}>
                 <div className={styles.placeholderLogo}>ZENITH</div>
-                <div className={styles.placeholderHint}>
-                  Double-click a session or press + to connect
+                <div className={styles.emptyState}>
+                  <div className={styles.placeholderHint}>
+                    Double-click a session or press + to connect
+                  </div>
                 </div>
               </div>
             )}

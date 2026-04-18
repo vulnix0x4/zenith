@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { log } from '../lib/log';
 
 export interface TerminalSettings {
   fontFamily: string;
@@ -85,7 +86,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const settings = await invoke<AppSettings>('get_settings');
       set({ settings, loaded: true });
     } catch (err) {
-      console.error('Failed to load settings:', err);
+      log.error('settings', 'failed to load settings', err);
       set({ loaded: true });
     }
   },
@@ -95,7 +96,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const saved = await invoke<AppSettings>('save_settings', { settings });
       set({ settings: saved });
     } catch (err) {
-      console.error('Failed to save settings:', err);
+      log.error('settings', 'failed to save settings', err);
     }
   },
 
