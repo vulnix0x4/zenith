@@ -393,20 +393,29 @@ export default function AppLayout() {
   // sidebar collapses on ordinary clicks outside itself, and tab-drag
   // initiation is left undisturbed. Excludes tab bar clicks too so single-
   // clicking a tab to switch focus doesn't also slam the sidebar.
+  //
+  // Uses `event.composedPath()` instead of `sidebarEl.contains(target)` so
+  // we correctly skip clicks on elements that get detached during React's
+  // render pass (e.g. the file browser replacing its entry list when you
+  // navigate into a folder — by the time our bubble-phase listener fires,
+  // the clicked row is orphaned and `contains()` returns false). The
+  // composed path is snapshotted at dispatch time and survives DOM churn.
   useEffect(() => {
     if (autoCollapse === false || !sidebarOpen) return;
 
     const onClick = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      const sidebarEl = document.querySelector('[data-sidebar-root]');
-      const activityEl = document.querySelector('[data-activity-bar]');
-      const titleBarEl = document.querySelector('[data-title-bar]');
-      const tabBarEl = document.querySelector('[data-tab-bar]');
-      if (sidebarEl?.contains(target)) return;
-      if (activityEl?.contains(target)) return;
-      if (titleBarEl?.contains(target)) return;
-      if (tabBarEl?.contains(target)) return;
+      const path = e.composedPath();
+      for (const node of path) {
+        if (!(node instanceof Element)) continue;
+        if (
+          node.hasAttribute('data-sidebar-root') ||
+          node.hasAttribute('data-activity-bar') ||
+          node.hasAttribute('data-title-bar') ||
+          node.hasAttribute('data-tab-bar')
+        ) {
+          return;
+        }
+      }
       toggleSidebar();
     };
 

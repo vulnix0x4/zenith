@@ -80,12 +80,17 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
     onClose();
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
+  // Intentionally NOT closing the dialog on backdrop click. Users lost work
+  // when a stray click outside the form fields wiped the half-filled session
+  // they were creating. To dismiss, use the × in the header or the Cancel
+  // button at the bottom. Pressing Escape also closes (see onKeyDown below).
   return (
-    <div className={styles.overlay} onClick={handleBackdropClick}>
+    <div
+      className={styles.overlay}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+    >
       <div className={styles.dialog}>
         <div className={styles.header}>
           <span className={styles.title}>
