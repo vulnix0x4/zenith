@@ -53,8 +53,23 @@ export default function XTerminal({ onData, onResize, onCwdChange, terminalRef }
       // WebGL not available, fall back to canvas renderer
     }
 
-    // Fit after open
-    fitAddon.fit();
+    // Guarded fit: skip when the container has no layout (e.g. this leaf
+    // lives under an inactive tab whose wrapper is display:none, or it's
+    // parked in the off-screen "limbo" host mid-transition). Calling
+    // fitAddon.fit() on a 0-sized container collapses the terminal to 1 col
+    // and stays that way even after the tab is shown again.
+    const safeFit = () => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      try {
+        fitAddon.fit();
+      } catch {
+        // Fit can throw transiently during re-parenting
+      }
+    };
+
+    // Fit after open (guarded)
+    safeFit();
 
     // Large-paste guard. Pasting a multi-megabyte blob or a script with
     // dozens of lines into a remote shell commonly ends in tears -- the
@@ -126,33 +141,63 @@ export default function XTerminal({ onData, onResize, onCwdChange, terminalRef }
       if (isMod && event.key === 'c') {
         if (terminal.hasSelection()) {
           navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
-          return false; // Prevent xterm from processing
+          event.preventDefault();
+          return false;
         }
         // No selection: let it through as SIGINT (Ctrl+C)
         return true;
       }
 
       if (isMod && event.key === 'v') {
+        // preventDefault blocks the browser's native paste event on xterm's
+        // hidden helper textarea. Without it we'd fire both our manual
+        // terminal.paste(text) below AND xterm's textarea-paste handler,
+        // which surfaces as an intermittent double-paste (the async clipboard
+        // read racing the sync textarea paste).
+        event.preventDefault();
+        event.stopPropagation();
         navigator.clipboard.readText().then((text) => {
-          terminal.paste(text);
+          if (text) terminal.paste(text);
         }).catch(() => {});
-        return false; // Prevent default
+        return false;
       }
 
       return true;
     });
 
-    // ResizeObserver to refit terminal on container resize
-    const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
+    // ResizeObserver to refit terminal on container resize. Guarded via
+    // safeFit so that a display:none ancestor (inactive tab) doesn't shrink
+    // the terminal to 1 col -- the observer still fires with a 0x0 rect in
+    // that case.
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width <= 0 || height <= 0) return;
+      safeFit();
     });
     resizeObserver.observe(container);
+
+    // IntersectionObserver as a backstop: when a tab goes display:none →
+    // block, ResizeObserver sometimes fails to fire for the revealed leaf
+    // if its container dimensions happen to match its pre-hide dimensions.
+    // IntersectionObserver always fires on visibility transitions, so a
+    // refit here guarantees the terminal re-syncs with its new box.
+    const intersectionObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          requestAnimationFrame(safeFit);
+        }
+      }
+    });
+    intersectionObserver.observe(container);
 
     // Report initial size
     onResize(terminal.cols, terminal.rows);
 
     return () => {
       resizeObserver.disconnect();
+      intersectionObserver.disconnect();
       dataDisposable.dispose();
       resizeDisposable.dispose();
       selectionDisposable.dispose();
