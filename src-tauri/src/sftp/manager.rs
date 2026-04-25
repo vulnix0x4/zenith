@@ -1,15 +1,26 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use russh_sftp::client::SftpSession;
-use russh_sftp::protocol::{FilePermissions, FileType};
+use russh_sftp::protocol::{FilePermissions, FileType, OpenFlags};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 
 use crate::sftp::errors::{file_exists_error, humanize_sftp_error};
 use crate::sftp::types::{FileEntry, FileKind};
 use crate::ssh::SharedSshHandle;
+
+/// Summary of a recursive directory upload, returned to the UI so it can
+/// display "uploaded N files" (and surface a partial-failure count if any
+/// files were skipped due to per-file errors).
+#[derive(Debug, serde::Serialize)]
+pub struct UploadDirReport {
+    pub uploaded: u32,
+    pub skipped: u32,
+}
 
 /// Manages SFTP sessions, one per SSH connection.
 pub struct SftpManager {
@@ -166,26 +177,75 @@ impl SftpManager {
             .get(session_id)
             .context("SFTP session not found")?;
 
-        if !overwrite {
-            // Best-effort existence check. `try_exists` returns false for
-            // NoSuchFile and propagates other errors (e.g. permission) -- we
-            // let those fall through to the `write` call which will surface
-            // a clearer humanized error.
-            match sftp.try_exists(remote_path).await {
-                Ok(true) => return Err(file_exists_error(remote_path)),
-                Ok(false) => {}
-                Err(_) => {
-                    // Couldn't determine existence -- fall through and let
-                    // the write attempt produce the error.
-                }
-            }
+        write_remote_file(sftp, remote_path, &data, overwrite).await
+    }
+
+    /// Upload an in-memory byte buffer to a remote path. Used by the
+    /// drag-and-drop path where the browser only hands us a `File` blob,
+    /// not a filesystem path the Rust side could `tokio::fs::read`.
+    pub async fn upload_data(
+        &self,
+        session_id: &str,
+        remote_path: &str,
+        data: &[u8],
+        overwrite: bool,
+    ) -> Result<()> {
+        let sessions = self.sessions.lock().await;
+        let sftp = sessions
+            .get(session_id)
+            .context("SFTP session not found")?;
+
+        write_remote_file(sftp, remote_path, data, overwrite).await
+    }
+
+    /// Idempotent mkdir: succeed if the directory exists or can be created.
+    /// Used while replicating a dropped folder tree onto the remote -- we
+    /// don't want every existing intermediate directory to throw.
+    pub async fn ensure_dir(&self, session_id: &str, path: &str) -> Result<()> {
+        let sessions = self.sessions.lock().await;
+        let sftp = sessions
+            .get(session_id)
+            .context("SFTP session not found")?;
+        ensure_remote_dir(sftp, path).await
+    }
+
+    /// Recursively upload a local directory under `remote_parent_dir`. The
+    /// folder's own name becomes the top-level remote child, mirroring how
+    /// `scp -r src/ dst/` produces `dst/src`.
+    ///
+    /// Returns a summary so the UI can report how many files actually went
+    /// through. Per-file failures are counted in `skipped` rather than
+    /// aborting -- a single permission error shouldn't abandon the rest of
+    /// the tree.
+    pub async fn upload_dir(
+        &self,
+        session_id: &str,
+        local_dir: &str,
+        remote_parent_dir: &str,
+        overwrite: bool,
+    ) -> Result<UploadDirReport> {
+        let local_path = Path::new(local_dir);
+        if !local_path.is_dir() {
+            anyhow::bail!("Local path is not a directory: {local_dir}");
         }
+        let dir_name = local_path
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("Could not derive folder name from path"))?
+            .to_string_lossy()
+            .to_string();
+        let remote_root = join_remote(remote_parent_dir, &dir_name);
 
-        sftp.write(remote_path, &data)
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
+        let sessions = self.sessions.lock().await;
+        let sftp = sessions
+            .get(session_id)
+            .context("SFTP session not found")?;
 
-        Ok(())
+        let mut report = UploadDirReport {
+            uploaded: 0,
+            skipped: 0,
+        };
+        upload_dir_recursive(sftp, local_path, &remote_root, overwrite, &mut report).await?;
+        Ok(report)
     }
 
     /// Delete a remote file or empty directory.
@@ -240,4 +300,111 @@ impl SftpManager {
 
         Ok(())
     }
+}
+
+/// Open a remote path with the right flags for an upload and write `data`.
+///
+/// `russh_sftp::SftpSession::write` is a footgun -- it opens with
+/// `OpenFlags::WRITE` only, which (a) errors with NoSuchFile on a path that
+/// doesn't yet exist and (b) silently leaves trailing bytes when overwriting
+/// a smaller file. We always want CREATE+TRUNCATE.
+async fn write_remote_file(
+    sftp: &SftpSession,
+    remote_path: &str,
+    data: &[u8],
+    overwrite: bool,
+) -> Result<()> {
+    if !overwrite {
+        match sftp.try_exists(remote_path).await {
+            Ok(true) => return Err(file_exists_error(remote_path)),
+            Ok(false) => {}
+            // Couldn't determine existence (e.g. permission error on
+            // metadata) -- proceed and let the open call surface a clearer
+            // humanized error.
+            Err(_) => {}
+        }
+    }
+
+    let mut file = sftp
+        .open_with_flags(
+            remote_path,
+            OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
+
+    file.write_all(data)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to write to remote file: {e}"))?;
+    file.shutdown()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to close remote file: {e}"))?;
+    Ok(())
+}
+
+/// Idempotent mkdir: succeeds if the directory already exists.
+/// Stat first, then create on miss. The SFTP "already exists" errors aren't
+/// uniform across servers, so checking up-front avoids having to
+/// allowlist particular `StatusCode`s as "harmless".
+async fn ensure_remote_dir(sftp: &SftpSession, path: &str) -> Result<()> {
+    if let Ok(meta) = sftp.metadata(path).await {
+        if meta.is_dir() {
+            return Ok(());
+        }
+        anyhow::bail!("Path exists but is not a directory: {path}");
+    }
+    sftp.create_dir(path)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", humanize_sftp_error(&e)))?;
+    Ok(())
+}
+
+/// Join a parent SFTP directory and a child name, normalising the slash
+/// regardless of whether `parent` came in with or without a trailing one.
+fn join_remote(parent: &str, child: &str) -> String {
+    if parent.ends_with('/') {
+        format!("{parent}{child}")
+    } else {
+        format!("{parent}/{child}")
+    }
+}
+
+/// Recursive helper -- boxed because async fns can't directly recurse.
+fn upload_dir_recursive<'a>(
+    sftp: &'a SftpSession,
+    local_path: &'a Path,
+    remote_path: &'a str,
+    overwrite: bool,
+    report: &'a mut UploadDirReport,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
+    Box::pin(async move {
+        ensure_remote_dir(sftp, remote_path).await?;
+
+        let mut entries = tokio::fs::read_dir(local_path)
+            .await
+            .with_context(|| format!("Failed to read local dir {}", local_path.display()))?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let entry_path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            let remote_child = join_remote(remote_path, &name);
+            let file_type = entry.file_type().await?;
+
+            if file_type.is_dir() {
+                upload_dir_recursive(sftp, &entry_path, &remote_child, overwrite, report).await?;
+            } else if file_type.is_file() {
+                match tokio::fs::read(&entry_path).await {
+                    Ok(data) => match write_remote_file(sftp, &remote_child, &data, overwrite).await {
+                        Ok(()) => report.uploaded += 1,
+                        Err(_) => report.skipped += 1,
+                    },
+                    Err(_) => report.skipped += 1,
+                }
+            }
+            // Symlinks / devices / fifos are skipped silently -- replicating
+            // them onto an SFTP server reliably is server-specific and well
+            // beyond what a desktop file browser should attempt.
+        }
+        Ok(())
+    })
 }

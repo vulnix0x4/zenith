@@ -38,6 +38,8 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
     navigateTo,
     download,
     upload,
+    uploadFolder,
+    uploadDropped,
     deleteEntry,
     renameEntry,
     createDir,
@@ -47,6 +49,11 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [initialized, setInitialized] = useState(false);
+  // Tracks whether a file drag is currently over the panel. Used to render
+  // a drop-target overlay. We count enters/leaves because a single drag
+  // generates leave+enter events as it crosses child elements; relying on
+  // a boolean would flicker.
+  const [dragDepth, setDragDepth] = useState(0);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const prevSessionRef = useRef<string | null>(null);
 
@@ -185,6 +192,72 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
     closeContext();
   }, [upload, closeContext]);
 
+  // Filter out drags that don't actually carry files (text drags, browser
+  // tab drags, the app's own tab-drag-to-split). Without this guard the drop
+  // overlay flashes whenever a tab is dragged over the file panel.
+  const dragHasFiles = useCallback((e: React.DragEvent) => {
+    const types = e.dataTransfer?.types;
+    if (!types) return false;
+    // Most browsers expose 'Files' on the types list when the drag includes
+    // OS files. Some older webviews use 'application/x-moz-file' instead.
+    for (let i = 0; i < types.length; i++) {
+      const t = types[i];
+      if (t === 'Files' || t === 'application/x-moz-file') return true;
+    }
+    return false;
+  }, []);
+
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDragDepth((d) => d + 1);
+    },
+    [dragHasFiles]
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // 'copy' produces the green-plus cursor, signalling "this drop will
+      // upload" rather than the default move/link cursors.
+      e.dataTransfer.dropEffect = 'copy';
+    },
+    [dragHasFiles]
+  );
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDragDepth((d) => Math.max(0, d - 1));
+    },
+    [dragHasFiles]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDragDepth(0);
+      // Prefer items (carries directory entries) over files (flat). Both
+      // come from the same DataTransfer; we hand whichever exists to the
+      // hook's traversal.
+      const dt = e.dataTransfer;
+      if (dt.items && dt.items.length > 0) {
+        uploadDropped(dt.items);
+      } else if (dt.files && dt.files.length > 0) {
+        uploadDropped(dt.files);
+      }
+    },
+    [dragHasFiles, uploadDropped]
+  );
+
   if (!sessionId) {
     return (
       <div className={styles.noConnection}>
@@ -205,7 +278,14 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
   }
 
   return (
-    <div className={styles.fileBrowser} onContextMenu={(e) => handleContextMenu(e, null)}>
+    <div
+      className={styles.fileBrowser}
+      onContextMenu={(e) => handleContextMenu(e, null)}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Path bar */}
       <div className={styles.pathBar} data-private>
         {breadcrumbs.map((seg, i) => (
@@ -239,12 +319,20 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
         </button>
-        <button className={styles.toolBtn} onClick={upload} title="Upload file" aria-label="Upload file">
+        <button className={styles.toolBtn} onClick={upload} title="Upload file(s)" aria-label="Upload file(s)">
           {/* upload tray */}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </button>
+        <button className={styles.toolBtn} onClick={uploadFolder} title="Upload folder" aria-label="Upload folder">
+          {/* folder + upward arrow -- distinct from the plain upload tray */}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            <polyline points="9 14 12 11 15 14" />
+            <line x1="12" y1="11" x2="12" y2="18" />
           </svg>
         </button>
         <div className={styles.toolbarSpacer} />
@@ -268,6 +356,18 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
           )}
         </button>
       </div>
+
+      {/* Drop-target overlay -- visible only while a file drag is over the
+          panel. pointer-events:none in CSS so it doesn't swallow drag events
+          (otherwise the dragleave from the underlying panel never fires
+          when the cursor crosses the overlay edge). */}
+      {dragDepth > 0 && (
+        <div className={styles.dropOverlay} aria-hidden>
+          <div className={styles.dropOverlayInner}>
+            Drop to upload to <span data-private>{currentPath}</span>
+          </div>
+        </div>
+      )}
 
       {/* Error display */}
       {error && <div className={styles.errorMsg}>{error}</div>}
@@ -357,7 +457,16 @@ export default function FileBrowser({ sessionId, terminalCwd }: FileBrowserProps
               </button>
             )}
             <button className={styles.contextItem} onClick={handleUpload}>
-              Upload here
+              Upload file(s) here
+            </button>
+            <button
+              className={styles.contextItem}
+              onClick={() => {
+                uploadFolder();
+                closeContext();
+              }}
+            >
+              Upload folder here
             </button>
             <div className={styles.contextDivider} />
             <button className={styles.contextItem} onClick={handleNewFolder}>

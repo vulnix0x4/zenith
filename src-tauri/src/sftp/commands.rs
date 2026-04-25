@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::sftp::manager::SftpManager;
+use crate::sftp::manager::{SftpManager, UploadDirReport};
 use crate::sftp::types::FileEntry;
 use crate::ssh::manager::SshManager;
 
@@ -109,6 +109,64 @@ pub async fn sftp_mkdir(
 ) -> Result<(), String> {
     sftp_manager
         .mkdir(&session_id, &path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Upload an in-memory byte buffer to a remote path. Used by the
+/// drag-and-drop path -- the browser hands us a `File` blob with no OS path,
+/// so we ship the bytes through IPC instead of asking Rust to read them.
+#[tauri::command]
+pub async fn sftp_upload_data(
+    session_id: String,
+    remote_path: String,
+    data: Vec<u8>,
+    overwrite: Option<bool>,
+    sftp_manager: State<'_, SftpManager>,
+) -> Result<(), String> {
+    sftp_manager
+        .upload_data(
+            &session_id,
+            &remote_path,
+            &data,
+            overwrite.unwrap_or(false),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Idempotent mkdir. Used by the drop traversal to materialize each level
+/// of a dropped folder tree without erroring on directories that already
+/// exist on the remote.
+#[tauri::command]
+pub async fn sftp_ensure_dir(
+    session_id: String,
+    path: String,
+    sftp_manager: State<'_, SftpManager>,
+) -> Result<(), String> {
+    sftp_manager
+        .ensure_dir(&session_id, &path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Recursively upload a local directory under `remote_parent_dir`. The
+/// folder's own name becomes the top-level remote child, mirroring `scp -r`.
+#[tauri::command]
+pub async fn sftp_upload_dir(
+    session_id: String,
+    local_dir: String,
+    remote_parent_dir: String,
+    overwrite: Option<bool>,
+    sftp_manager: State<'_, SftpManager>,
+) -> Result<UploadDirReport, String> {
+    sftp_manager
+        .upload_dir(
+            &session_id,
+            &local_dir,
+            &remote_parent_dir,
+            overwrite.unwrap_or(false),
+        )
         .await
         .map_err(|e| e.to_string())
 }

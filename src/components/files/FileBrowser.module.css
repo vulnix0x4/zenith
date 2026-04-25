@@ -3,6 +3,47 @@
   flex-direction: column;
   height: 100%;
   gap: 4px;
+  /* Anchor for the absolute-positioned drop overlay. Without this the
+     overlay would inherit the next ancestor's positioning context and
+     mis-align over the whole window. */
+  position: relative;
+}
+
+/* Drop-target overlay. pointer-events:none lets the underlying panel keep
+   firing dragleave/drop on its real target, which is critical: if the
+   overlay swallowed pointer events, dragging from one child to another
+   would emit a drop on the overlay itself and lose the dropped files. */
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--cyan-glow);
+  border: 2px dashed var(--cyan);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Faintly glowing inner edge -- pairs with the rest of the cyan accent
+     used elsewhere (active terminal frame, toolbar hover). */
+  box-shadow: inset 0 0 16px var(--cyan-dim);
+}
+
+.dropOverlayInner {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--cyan);
+  text-shadow: 0 0 8px var(--cyan-dim);
+  background: var(--bg-deep);
+  padding: 8px 14px;
+  border: 1px solid var(--cyan-dim);
+  border-radius: 4px;
+}
+
+.dropOverlayInner span {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  margin-left: 4px;
 }
 
 /* Path breadcrumbs bar */
