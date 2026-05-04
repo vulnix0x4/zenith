@@ -322,17 +322,19 @@ fn format_bytes_f64(b: f64) -> String {
     }
 }
 
-/// Format a bytes-per-second rate to human-readable.
+/// Format a bytes-per-second rate to human-readable bits-per-second.
 fn format_rate(bytes_per_sec: f64) -> String {
-    const MB: f64 = 1_048_576.0;
-    const KB: f64 = 1024.0;
+    const MB: f64 = 1_000_000.0;
+    const KB: f64 = 1_000.0;
 
-    if bytes_per_sec >= MB {
-        format!("{:.1} MB/s", bytes_per_sec / MB)
-    } else if bytes_per_sec >= KB {
-        format!("{:.1} KB/s", bytes_per_sec / KB)
+    let bits_per_sec = bytes_per_sec * 8.0;
+
+    if bits_per_sec >= MB {
+        format!("{:.1} Mb/s", bits_per_sec / MB)
+    } else if bits_per_sec >= KB {
+        format!("{:.1} Kb/s", bits_per_sec / KB)
     } else {
-        format!("{:.0} B/s", bytes_per_sec)
+        format!("{:.0} b/s", bits_per_sec)
     }
 }
 
