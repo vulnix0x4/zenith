@@ -150,6 +150,8 @@ pub(crate) fn compute_metrics(prev: &RawSample, curr: &RawSample, elapsed_secs: 
         ram_total: format_bytes_kb(curr.mem_total_kb),
         network_down: format_rate(rx_rate),
         network_up: format_rate(tx_rate),
+        network_down_bytes_per_sec: rx_rate,
+        network_up_bytes_per_sec: tx_rate,
         disk: round2(curr.disk_percent),
         disk_used: format_bytes(curr.disk_used),
         disk_total: format_bytes(curr.disk_total),

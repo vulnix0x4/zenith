@@ -9,6 +9,8 @@ export interface MonitorData {
   ramTotal: string;
   networkUp: string;
   networkDown: string;
+  networkUpBytesPerSec: number;
+  networkDownBytesPerSec: number;
   disk: number;
   diskUsed: string;
   diskTotal: string;

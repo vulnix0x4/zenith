@@ -9,6 +9,8 @@ pub struct MonitorData {
     pub ram_total: String,
     pub network_up: String,
     pub network_down: String,
+    pub network_up_bytes_per_sec: f64,
+    pub network_down_bytes_per_sec: f64,
     pub disk: f64,
     pub disk_used: String,
     pub disk_total: String,

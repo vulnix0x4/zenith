@@ -3,9 +3,9 @@
   background: var(--bg-deep);
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 14px;
   border-top: 1px solid var(--border-subtle);
-  gap: 14px;
+  gap: 24px;
   font-family: var(--font-mono);
   font-size: 11px;
   flex-shrink: 0;
@@ -19,41 +19,67 @@
 
 .metric {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
   gap: 4px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.metricLabel {
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 500;
-  min-width: 26px;
-}
-
-.blocks {
+.row1 {
   display: flex;
-  gap: 1px;
-  line-height: 1;
+  align-items: baseline;
+  gap: 8px;
 }
 
-.blockFilled {
-  font-size: 9px;
-  filter: drop-shadow(0 0 2px currentColor);
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
-.blockEmpty {
-  font-size: 9px;
-  opacity: 0.15;
-}
-
-.metricValue {
-  font-size: 11px;
-  color: var(--text-secondary);
-  min-width: 28px;
-  text-align: right;
+.primary {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  /* Equal-width digits so changing values don't reflow neighbouring metrics. */
+}
+
+.row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 16px;
+}
+
+.bar {
+  width: 80px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.spark {
+  display: block;
+  flex-shrink: 0;
+}
+
+.sparkPlaceholder {
+  flex-shrink: 0;
+}
+
+.detail {
+  font-size: 10px;
+  color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
 
