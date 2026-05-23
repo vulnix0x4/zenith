@@ -94,6 +94,17 @@ function parseHostKeyMismatch(err: unknown): HostKeyMismatchPayload | null {
   }
 }
 
+/**
+ * Render a `host:port` pair for display, bracketing the host if it contains
+ * a colon (i.e. is an IPv6 literal). Otherwise `2001:db8::1:22` is ambiguous
+ * to a human reader -- it could be host `2001:db8::1` port 22, or host
+ * `2001:db8::1:22` with no port. The backend already brackets when needed;
+ * this is just for the warning string.
+ */
+function displayHostPort(host: string, port: number): string {
+  return host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`;
+}
+
 /** Walk every tab's pane tree and find the leaf with the given id. */
 function findLeaf(leafId: string): LeafContent | null {
   for (const tab of useTabStore.getState().tabs) {
@@ -209,7 +220,7 @@ export function useSshConnection() {
         const mismatch = parseHostKeyMismatch(err);
         if (mismatch) {
           const approved = await confirm(
-            `The SSH host key for ${mismatch.hostname}:${mismatch.port} has CHANGED since your last connection.\n\n` +
+            `The SSH host key for ${displayHostPort(mismatch.hostname, mismatch.port)} has CHANGED since your last connection.\n\n` +
               `Expected: ${mismatch.expectedFingerprint}\n` +
               `Received: ${mismatch.actualFingerprint}\n\n` +
               `This could indicate a man-in-the-middle attack, OR the server was legitimately reinstalled.\n\n` +

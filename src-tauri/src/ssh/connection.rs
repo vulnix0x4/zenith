@@ -7,6 +7,7 @@ use russh::keys::{self, PrivateKeyWithHashAlg};
 use russh::{ChannelMsg, Disconnect};
 use tokio::sync::mpsc;
 
+use crate::ssh::addr::{format_socket_addr, normalize_host};
 use crate::ssh::known_hosts::{self, CheckResult};
 use crate::ssh::types::{AuthMethod, SshConnectRequest, SshEvent};
 
@@ -138,8 +139,12 @@ impl SshConnection {
             ..<_>::default()
         };
 
-        let addr = format!("{}:{}", request.hostname, request.port);
-        let handler = ClientHandler::new(request.hostname.clone(), request.port);
+        // Normalize once so bracketed and bare IPv6 input map to the same
+        // entry in the known_hosts store; build the connectable socket
+        // address from the normalized form (IPv6 literals get bracketed).
+        let host = normalize_host(&request.hostname);
+        let addr = format_socket_addr(&host, request.port);
+        let handler = ClientHandler::new(host, request.port);
         let mut handle = match client::connect(Arc::new(config), &addr, handler).await {
             Ok(h) => h,
             Err(HandlerError::HostKeyMismatch { expected, actual }) => {

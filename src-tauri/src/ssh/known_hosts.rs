@@ -7,6 +7,10 @@
 //!
 //!   <hostname>:<port> <algorithm> <SHA256:base64-fingerprint>
 //!
+//! IPv6 literals are bracketed so the host/port colon stays unambiguous:
+//!
+//!   [::1]:22 ssh-ed25519 SHA256:abc...
+//!
 //! We deliberately invented our own format rather than reusing OpenSSH's
 //! `known_hosts` wire format because:
 //!   * OpenSSH encodes the FULL key; we only need a fingerprint for detection.
@@ -26,6 +30,7 @@ use std::path::PathBuf;
 use russh::keys::ssh_key::{HashAlg, PublicKey};
 
 use crate::sessions::storage::data_dir;
+use crate::ssh::addr::{format_socket_addr, normalize_host};
 use crate::storage_util::atomic_write;
 
 /// Outcome of checking a server key against the on-disk store.
@@ -93,8 +98,12 @@ fn parse_line(line: &str) -> Option<Entry> {
     Some(Entry { host_key, algorithm, fingerprint })
 }
 
+/// Canonical key used both on disk and for in-memory lookups. IPv6 literals
+/// are bracketed via [`format_socket_addr`] so the colon between host and port
+/// can never be misparsed — and so `::1` and `[::1]` resolve to the same
+/// entry regardless of how the user typed the address.
 fn host_key_for(hostname: &str, port: u16) -> String {
-    format!("{hostname}:{port}")
+    format_socket_addr(&normalize_host(hostname), port)
 }
 
 /// Append a fresh entry to the known_hosts file. The file is rewritten
@@ -112,7 +121,8 @@ fn append_entry(hostname: &str, port: u16, algorithm: &str, fingerprint: &str) {
 fn write_entries(entries: &[Entry]) {
     let mut out = String::from(
         "# Zenith known hosts. One entry per line: \
-         <hostname>:<port> <algorithm> <SHA256:base64-fingerprint>\n",
+         <hostname>:<port> <algorithm> <SHA256:base64-fingerprint>\n\
+         # IPv6 literals are bracketed, e.g. [::1]:22\n",
     );
     for e in entries {
         out.push_str(&format!("{} {} {}\n", e.host_key, e.algorithm, e.fingerprint));
@@ -169,7 +179,7 @@ pub fn forget(hostname: &str, port: u16) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_line;
+    use super::{host_key_for, parse_line};
 
     #[test]
     fn parse_line_skips_blank_and_comments() {
@@ -191,5 +201,33 @@ mod tests {
     fn parse_line_rejects_truncated_entries() {
         assert!(parse_line("example.com:22").is_none());
         assert!(parse_line("example.com:22 ssh-ed25519").is_none());
+    }
+
+    #[test]
+    fn parse_line_reads_bracketed_ipv6() {
+        let e = parse_line("[2001:db8::1]:22 ssh-ed25519 SHA256:def456").unwrap();
+        assert_eq!(e.host_key, "[2001:db8::1]:22");
+        assert_eq!(e.algorithm, "ssh-ed25519");
+        assert_eq!(e.fingerprint, "SHA256:def456");
+    }
+
+    #[test]
+    fn host_key_brackets_ipv6_and_leaves_others_alone() {
+        assert_eq!(host_key_for("example.com", 22), "example.com:22");
+        assert_eq!(host_key_for("1.2.3.4", 22), "1.2.3.4:22");
+        assert_eq!(host_key_for("::1", 22), "[::1]:22");
+        assert_eq!(host_key_for("2001:db8::1", 2222), "[2001:db8::1]:2222");
+    }
+
+    /// User-typed `[::1]` and `::1` MUST resolve to the same on-disk entry
+    /// — otherwise a TOFU acceptance via the session dialog wouldn't match a
+    /// later quick-connect typed with the other form.
+    #[test]
+    fn host_key_normalizes_bracketed_and_bare_ipv6() {
+        assert_eq!(host_key_for("[::1]", 22), host_key_for("::1", 22));
+        assert_eq!(
+            host_key_for("[2001:db8::1]", 22),
+            host_key_for("2001:db8::1", 22),
+        );
     }
 }

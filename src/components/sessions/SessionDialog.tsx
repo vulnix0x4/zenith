@@ -119,7 +119,7 @@ export default function SessionDialog({ open, onClose, onSave, session }: Sessio
               type="text"
               value={hostname}
               onChange={(e) => setHostname(e.target.value)}
-              placeholder="192.168.1.1"
+              placeholder="192.168.1.1, 2001:db8::1, or hostname"
             />
           </label>
           <div className={styles.row}>

@@ -59,7 +59,7 @@ export default function QuickConnect({ open, onClose, onConnect }: QuickConnectP
               type="text"
               value={hostname}
               onChange={(e) => setHostname(e.target.value)}
-              placeholder="192.168.1.1 or hostname"
+              placeholder="192.168.1.1, 2001:db8::1, or hostname"
               autoFocus
             />
           </label>
